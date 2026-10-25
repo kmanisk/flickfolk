@@ -999,10 +999,37 @@ kbd {
   flex: 0 0 64px;
   width: 64px;
 }
-.youtube-shield {
-  position: absolute;
-  inset: 0;
-  z-index: 3;
+
+/* YouTube keeps its own required branding, while Flickfolk owns playback controls. */
+.player-shell.youtube-player {
+  --youtube-control-strip: 58px;
+}
+.player-shell.youtube-player .screen {
+  bottom: var(--youtube-control-strip);
+}
+.player-shell.youtube-player .player-controls {
+  min-height: var(--youtube-control-strip);
+  padding: 8px 14px;
+  background: var(--panel);
+  border-top: 1px solid var(--line);
+  opacity: 1;
+  pointer-events: auto;
+}
+.player-shell.youtube-player:fullscreen .screen {
+  inset: 0 0 var(--youtube-control-strip);
+}
+.youtube-caption-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  color: var(--muted);
+  flex: 0 0 34px;
+}
+.youtube-caption-status svg {
+  width: 18px;
+  height: 18px;
 }
 .screen-fx,
 .screen-flash {
@@ -2424,6 +2451,16 @@ kbd {
   display: none;
 }
 @media (max-width: 767px) {
+  .player-shell.youtube-player {
+    --youtube-control-strip: 52px;
+  }
+  .player-shell.youtube-player .player-controls {
+    padding: 4px 8px;
+  }
+  .youtube-caption-status {
+    width: 30px;
+    flex-basis: 30px;
+  }
   .room-topbar .icon-button,
   .room-topbar .invite-button {
     width: 44px;
@@ -2747,6 +2784,15 @@ kbd {
 .player-controls input[type="range"] {
   appearance: none;
   -webkit-appearance: none;
+}
+.player-controls input[type="range"]:focus-visible {
+  outline: none;
+}
+.player-controls input[type="range"]:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 2px var(--panel), 0 0 0 4px var(--accent);
+}
+.player-controls input[type="range"]:focus-visible::-moz-range-thumb {
+  box-shadow: 0 0 0 2px var(--panel), 0 0 0 4px var(--accent);
 }
 .player-controls input[type="range"]::-webkit-slider-runnable-track {
   height: 4px;
