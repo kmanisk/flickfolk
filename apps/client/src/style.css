@@ -258,6 +258,63 @@ textarea::placeholder {
   width: 15px;
   height: 15px;
 }
+
+.room-identity {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  margin-left: 18px;
+  padding-left: 18px;
+  border-left: 1px solid var(--line);
+}
+.room-identity-label {
+  color: #756d69;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  line-height: 1;
+}
+.room-code-compact {
+  min-height: 32px;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--text);
+  background: transparent;
+  font: 13px var(--mono);
+  letter-spacing: 0.055em;
+  transition:
+    color var(--motion-fast),
+    background-color var(--motion-fast);
+}
+.room-code-compact svg {
+  width: 14px;
+  height: 14px;
+  color: var(--muted);
+  opacity: 0.55;
+  transition:
+    color var(--motion-fast),
+    opacity var(--motion-fast);
+}
+.room-code-compact:hover,
+.room-code-compact:focus-visible {
+  color: var(--accent);
+  background: #ff7a590a;
+}
+.room-code-compact:hover svg,
+.room-code-compact:focus-visible svg {
+  color: currentColor;
+  opacity: 1;
+}
+.room-code-compact.is-copied,
+.room-code-compact.is-copied svg {
+  color: var(--online);
+  opacity: 1;
+}
 .person-avatar {
   --voice-level: 0;
   flex: 0 0 32px;
@@ -1964,6 +2021,20 @@ kbd {
   .room-topbar .brand-mark {
     width: 28px;
     height: 28px;
+  }
+  .room-identity {
+    margin-left: 8px;
+    padding-left: 8px;
+    gap: 0;
+  }
+  .room-identity-label {
+    display: none;
+  }
+  .room-code-compact {
+    min-height: 44px;
+    padding-inline: 6px;
+    font-size: 12px;
+    gap: 5px;
   }
   .room-topbar .room-code {
     padding: 6px 9px;

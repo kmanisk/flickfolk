@@ -28,7 +28,6 @@ import type { Socket } from "socket.io-client";
 import type { VoiceApi } from "./VoiceBridge.js";
 import { AudioLevels } from "./AudioLevels.js";
 import {
-  AvatarStack,
   Brand,
   Button,
   Chip,
@@ -251,24 +250,26 @@ export default function RoomView({
             leave();
           }}
         />
-        <Button
-          variant="ghost"
-          className="room-code chip"
-          onClick={() => void copy(true)}
-          aria-label={
-            copied === "code"
-              ? "Room code copied"
-              : `Copy room code ${room.code}`
-          }
-        >
-          <span>{room.code}</span>
-          {copied === "code" ? (
-            <Check aria-hidden="true" />
-          ) : (
-            <Copy aria-hidden="true" />
-          )}
-        </Button>
-        <AvatarStack people={speakers} />
+        <div className="room-identity" aria-label={`Room ${room.code}`}>
+          <span className="room-identity-label">ROOM</span>
+          <button
+            type="button"
+            className={`room-code-compact${copied === "code" ? " is-copied" : ""}`}
+            onClick={() => void copy(true)}
+            aria-label={
+              copied === "code"
+                ? "Room code copied"
+                : `Copy room code ${room.code}`
+            }
+          >
+            <span>{room.code}</span>
+            {copied === "code" ? (
+              <Check aria-hidden="true" />
+            ) : (
+              <Copy aria-hidden="true" />
+            )}
+          </button>
+        </div>
         <div className="topbar-actions">
           <Button
             className="invite-button"
