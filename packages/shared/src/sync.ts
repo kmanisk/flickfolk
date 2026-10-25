@@ -65,7 +65,7 @@ export function computeCorrection(input: CorrectionInput): Correction {
       return { action: "none", rate: 1 };
     return { action: "seek", seekTo: Math.max(0, targetSec), rate: 1 };
   }
-  if (drift < (nudging ? 0.05 : 0.12) || (consecutiveOver < 2 && !nudging))
+  if (drift < (nudging ? 0.04 : 0.08) || (consecutiveOver < 2 && !nudging))
     return { action: "none", rate: 1 };
   if (drift > 2)
     return { action: "seek", seekTo: Math.max(0, targetSec), rate: 1 };

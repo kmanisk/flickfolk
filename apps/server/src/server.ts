@@ -107,6 +107,10 @@ export function createApp() {
     cors: { origin: process.env.CLIENT_ORIGIN || "http://localhost:5173" },
   });
   const rooms = new Map<string, Room>();
+  const clientSessions = new Map<
+    string,
+    { roomCode: string; socketId: string }
+  >();
   app.get("/api/rtc-config", (req, res) => {
     res.set("Cache-Control", "no-store");
     if (!allow(`rtc:${req.ip}`, 60)) {
@@ -162,6 +166,7 @@ export function createApp() {
   const broadcast = (room: Room) => io.to(room.code).emit("room:state", room);
   io.on("connection", (socket) => {
     let code: string | undefined;
+    let clientId: string | undefined;
     const forwarded = socket.handshake.headers["x-forwarded-for"];
     const address =
       process.env.TRUST_PROXY === "1" && typeof forwarded === "string"
@@ -191,6 +196,41 @@ export function createApp() {
         });
       }
     }
+    function cleanClientId(value: unknown) {
+      if (
+        typeof value !== "string" ||
+        !/^[a-zA-Z0-9_-]{8,64}$/.test(value)
+      )
+        throw new Error("Invalid client identity.");
+      return value;
+    }
+    function removeDuplicateClient(room: Room, nextClientId: string) {
+      const previous = clientSessions.get(nextClientId);
+      if (!previous || previous.socketId === socket.id) return;
+      const previousRoom = rooms.get(previous.roomCode);
+      if (previousRoom) {
+        previousRoom.participants = previousRoom.participants.filter(
+          (participant) => participant.id !== previous.socketId,
+        );
+        if (previousRoom.hostId === previous.socketId) {
+          if (previousRoom.code === room.code) previousRoom.hostId = socket.id;
+          else if (previousRoom.participants.length)
+            previousRoom.hostId = previousRoom.participants[0]!.id;
+        }
+        if (!previousRoom.participants.length && previousRoom.code !== room.code)
+          rooms.delete(previousRoom.code);
+        else if (previousRoom.code !== room.code) broadcast(previousRoom);
+      }
+      void io.sockets.sockets.get(previous.socketId)?.leave(previous.roomCode);
+      clientSessions.delete(nextClientId);
+    }
+    function rememberClient(room: Room, nextClientId: string) {
+      clientId = nextClientId;
+      clientSessions.set(nextClientId, {
+        roomCode: room.code,
+        socketId: socket.id,
+      });
+    }
     function member() {
       const room = code ? rooms.get(code) : undefined;
       if (!room || !room.participants.some((p) => p.id === socket.id))
@@ -208,6 +248,12 @@ export function createApp() {
       const room = rooms.get(code);
       void socket.leave(code);
       code = undefined;
+      if (
+        clientId &&
+        clientSessions.get(clientId)?.socketId === socket.id
+      )
+        clientSessions.delete(clientId);
+      clientId = undefined;
       if (!room) return;
       room.participants = room.participants.filter((p) => p.id !== socket.id);
       if (!room.participants.length) {
@@ -221,6 +267,7 @@ export function createApp() {
       guard(ack, () => {
         limit("create", 10);
         const name = cleanName(payload?.name);
+        const nextClientId = cleanClientId(payload?.clientId ?? socket.id);
         if (rooms.size >= 1000)
           throw new Error("Room capacity reached. Try again later.");
         let next: string;
@@ -246,6 +293,8 @@ export function createApp() {
             revision: 0,
           },
         };
+        removeDuplicateClient(room, nextClientId);
+        rememberClient(room, nextClientId);
         rooms.set(code, room);
         void socket.join(code);
         broadcast(room);
@@ -256,6 +305,7 @@ export function createApp() {
       guard(ack, () => {
         limit("join", 60);
         const name = cleanName(payload?.name);
+        const nextClientId = cleanClientId(payload?.clientId ?? socket.id);
         if (typeof payload?.code !== "string")
           throw new Error("Enter a room code.");
         const next = normalizeCode(payload.code);
@@ -264,11 +314,16 @@ export function createApp() {
         const room = rooms.get(next);
         if (!room)
           throw new Error("Room not found. Ask your friend for a new invite.");
-        if (code === next) return room;
+        if (code === next) {
+          rememberClient(room, nextClientId);
+          return room;
+        }
+        removeDuplicateClient(room, nextClientId);
         if (room.participants.length >= 24)
           throw new Error("This room is full (24 people).");
         leave();
         code = next;
+        rememberClient(room, nextClientId);
         room.participants.push({
           id: socket.id,
           name,

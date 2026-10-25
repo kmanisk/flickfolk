@@ -32,6 +32,18 @@ function storedName() {
     return "";
   }
 }
+function storedClientId() {
+  try {
+    const current = localStorage.getItem("flickfolk-client-id");
+    if (current) return current;
+    const next = crypto.randomUUID();
+    localStorage.setItem("flickfolk-client-id", next);
+    return next;
+  } catch {
+    return crypto.randomUUID();
+  }
+}
+const clientId = storedClientId();
 function App() {
   const [effects, setEffects] = useState(true);
   const [notFound, setNotFound] = useState(
@@ -77,7 +89,7 @@ function App() {
           .timeout(5000)
           .emit(
             "room:join",
-            { name: nameRef.current, code: previous.code },
+            { name: nameRef.current, code: previous.code, clientId },
             (err: Error | null, result: Result<Room>) => {
               setStatus("Connected");
               if (err || !result.ok) {
@@ -173,13 +185,15 @@ function App() {
       );
     };
     if (create)
-      socket.timeout(7000).emit("room:create", { name: clean }, response);
+      socket
+        .timeout(7000)
+        .emit("room:create", { name: clean, clientId }, response);
     else
       socket
         .timeout(7000)
         .emit(
           "room:join",
-          { name: clean, code: normalizeCode(joinCode) },
+          { name: clean, code: normalizeCode(joinCode), clientId },
           response,
         );
   }
