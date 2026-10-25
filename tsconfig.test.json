@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true
+  },
+  "include": [
+    "tests/**/*.ts",
+    "apps/server/test/**/*.ts",
+    "packages/shared/test/**/*.ts",
+    "playwright.config.ts",
+    "vitest.config.ts"
+  ]
+}

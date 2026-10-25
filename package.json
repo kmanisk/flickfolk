@@ -1,0 +1,31 @@
+{
+  "name": "watchparty",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "dev": "npm run build -w @watchparty/shared && concurrently -k \"npm run dev -w @watchparty/server\" \"npm run dev -w @watchparty/client\"",
+    "build": "npm run build -w @watchparty/shared && npm run build -w @watchparty/server && npm run build -w @watchparty/client",
+    "start": "node --env-file-if-exists=.env apps/server/dist/index.js",
+    "lint": "eslint apps packages tests *.ts *.js",
+    "typecheck": "npm run build -w @watchparty/shared && npm run typecheck --workspaces --if-present && tsc --noEmit -p tsconfig.test.json",
+    "test": "npm run build -w @watchparty/shared && vitest run",
+    "test:e2e": "npm run build && playwright test"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.0.0",
+    "@playwright/test": "^1.64.1",
+    "@types/node": "^22.0.0",
+    "concurrently": "^9.0.0",
+    "eslint": "^9.0.0",
+    "typescript": "~5.9.0",
+    "typescript-eslint": "^8.0.0",
+    "vitest": "^5.0.5"
+  }
+}

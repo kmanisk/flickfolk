@@ -1,0 +1,17 @@
+services:
+  watchparty:
+    build: .
+    ports:
+      - "${PORT:-3001}:3001"
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      HOST: 0.0.0.0
+      STUN_URLS: ${STUN_URLS:-stun:stun.l.google.com:19302}
+      TURN_URLS: ${TURN_URLS:-}
+      TURN_USERNAME: ${TURN_USERNAME:-}
+      TURN_PASSWORD: ${TURN_PASSWORD:-}
+      GIPHY_API_KEY: ${GIPHY_API_KEY:-}
+    stop_grace_period: 15s
+    init: true
+    restart: unless-stopped

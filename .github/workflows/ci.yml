@@ -1,0 +1,42 @@
+name: Verify
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci
+      - run: npm audit --audit-level=high
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npx playwright test
+      - name: Build production Docker image
+        run: docker build --tag afterglow:ci .
+      - name: Check container health and non-root user
+        run: |
+          docker run -d --name afterglow-ci -p 127.0.0.1:3001:3001 afterglow:ci
+          test "$(docker exec afterglow-ci id -u)" != '0'
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:3001/healthz; then exit 0; fi
+            sleep 1
+          done
+          docker logs afterglow-ci
+          exit 1
+      - name: Stop test container
+        if: always()
+        run: docker rm -f afterglow-ci || true
