@@ -77,17 +77,20 @@ Screenshots are generated from actual browser tests, not Figma renderings.
 | `apps/server`     | Express/Socket.IO, rooms, host permissions, validation, rate limits and logs |
 | `packages/shared` | Event contracts, validation, permissions, timeline and drift math            |
 
-The server owns a position, playing flag, timestamp and revision. A new joiner
-receives that snapshot immediately and extrapolates the position using estimated
-server time. Clock requests measure a round trip every 15 seconds and estimate the
-clock offset. Reported drift is the signed target-minus-local position measured
-before correction, not a fabricated sample.
+### Sync algorithm
 
-The existing 500 ms correction loop gently adjusts HTML5 rate for small drift and
-seeks when drift exceeds 1.25 seconds (0.15 seconds while paused). YouTube seeks
-large drift without forcing unsupported fractional rates. Explicit host buttons
-and shortcuts use the same command path. Media events and local corrections never
-emit commands, preventing feedback loops. Disconnected clients pause locally.
+The server owns playback position, timestamp and revision; the wire protocol is unchanged.
+At connect, five pings 200ms apart select the lowest-RTT clock offset.
+Three pings every 30s refresh it with a .3 EMA; samples over twice the best RTT are ignored.
+Late join, reconnect and foreground resume align to the expected server position once.
+Playing drift is measured at 1Hz, skipping hidden, buffering and seeking players.
+Files nudge rate by 5% after two bad samples; active nudges stop below 50ms drift.
+Normal file deadband is 120ms; drift above 2s seeks. YouTube seeks above 600ms, at most every 4s.
+Programmatic events have a 600ms echo guard; matching state/rate events never emit controls.
+Only hosts send commands, bounded to duration and throttled per action with a trailing final value.
+Scrubbing sends once on release; autoplay denial waits for a gesture and then realigns.
+Playback revisions reject stale/duplicate playback; same-revision chat and presence still arrive.
+An external telemetry store publishes at most 4Hz; the main room does not rerender on each tick.
 
 A disconnected host is immediately replaced by the next participant. Rejoin keeps
 the new host. Socket.IO can recover identity after unexpected transport loss within

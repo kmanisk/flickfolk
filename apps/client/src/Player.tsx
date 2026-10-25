@@ -1,3 +1,6 @@
+import { PlaybackEngine } from "./lib/playbackEngine.js";
+import { html5Adapter, youtubeAdapter } from "./lib/playerAdapter.js";
+import { clockSync, syncStore, subscribeResync } from "./lib/syncRuntime.js";
 import { ActiveSpeakers, type Speaker } from "./ActiveSpeakers.js";
 import type { AudioLevels } from "./AudioLevels.js";
 import { useEffect, useRef, useState } from "react";
@@ -17,8 +20,6 @@ export interface PlaybackMetrics {
     | "error";
 }
 import {
-  correction,
-  currentPosition,
   type Action,
   type Playback,
   type ReactionSymbol,
@@ -52,7 +53,6 @@ export function Player({
   playback,
   host,
   connected,
-  offset,
   control,
   onMetrics,
   channel,
@@ -68,7 +68,6 @@ export function Player({
   playback: Playback;
   host: boolean;
   connected: boolean;
-  offset: React.RefObject<number>;
   control: (action: Action, position: number) => void;
   onMetrics: (metrics: PlaybackMetrics) => void;
   channel: string;
@@ -87,7 +86,13 @@ export function Player({
   const video = useRef<HTMLVideoElement>(null);
   const mount = useRef<HTMLDivElement>(null);
   const yt = useRef<YT.Player | null>(null);
-  const initiallyAligned = useRef(false);
+  const engine = useRef<PlaybackEngine | null>(null);
+  const position = useRef(0);
+  const duration = useRef(0);
+  const seeking = useRef(false);
+  const seekInput = useRef<HTMLInputElement>(null);
+  const currentTimeLabel = useRef<HTMLSpanElement>(null);
+  const durationLabel = useRef<HTMLSpanElement>(null);
   const latest = useRef(playback);
   latest.current = playback;
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -95,8 +100,6 @@ export function Player({
   const [error, setError] = useState("");
   const [blocked, setBlocked] = useState(false);
   const [muted, setMuted] = useState(false);
-  const [position, setPosition] = useState(0);
-  const [duration, setDuration] = useState(0);
   const media = playback.media;
   const volume = useDucking(
     video,
@@ -110,12 +113,11 @@ export function Player({
   const volumeObserver = useRef(volume.observe);
   volumeObserver.current = volume.observe;
   useEffect(() => {
-    initiallyAligned.current = false;
     setReady(false);
     setError("");
     setBlocked(false);
-    setPosition(0);
-    setDuration(0);
+    position.current = 0;
+    duration.current = 0;
     if (media?.kind !== "youtube") return;
     let disposed = false;
     void loadYouTube()
@@ -142,7 +144,10 @@ export function Player({
               setError(
                 "This YouTube video cannot be embedded. Try another video.",
               ),
-            onAutoplayBlocked: () => setBlocked(true),
+            onAutoplayBlocked: () => {
+              engine.current?.autoplayBlocked();
+              setBlocked(true);
+            },
           },
         });
       })
@@ -167,79 +172,96 @@ export function Player({
               : "synced",
     });
   }, [error, blocked, ready, media]);
+  const latestControl = useRef(control);
+  latestControl.current = control;
+  function showTime(time: number, length: number) {
+    volumeObserver.current();
+    duration.current = Number.isFinite(length) ? length : 0;
+    if (durationLabel.current)
+      durationLabel.current.textContent = timestamp(duration.current);
+    if (seeking.current) return;
+    position.current = time;
+    if (currentTimeLabel.current)
+      currentTimeLabel.current.textContent = timestamp(time);
+    if (seekInput.current) {
+      seekInput.current.max = String(duration.current || Math.max(time, 1));
+      seekInput.current.value = String(
+        Math.min(time, duration.current || Math.max(time, 1)),
+      );
+    }
+  }
+  const presentTime = useRef(showTime);
+  presentTime.current = showTime;
   useEffect(() => {
-    if (!connected) initiallyAligned.current = false;
     if (!ready || error) return;
-    const sync = () => {
-      volumeObserver.current();
-      const state = latest.current;
-      const playing = connected && state.playing;
-      const target = currentPosition(state, Date.now() + offset.current);
-      const v = video.current;
-      const y = yt.current;
-      const local = v?.currentTime ?? y?.getCurrentTime() ?? 0;
-      const length = v?.duration ?? y?.getDuration() ?? 0;
-      const bounded =
-        Number.isFinite(length) && length > 0
-          ? Math.min(target, length)
-          : target;
-      const fix = correction(local, bounded, playing);
-      // A ready late joiner must land on the timeline immediately, even when
-      // the initial offset is below the normal hard-seek threshold.
-      if (connected && !blocked && !initiallyAligned.current && length > 0) {
-        fix.seek = true;
-        initiallyAligned.current = true;
-      }
-      const driftMs = (bounded - local) * 1000;
-      report.current({
-        driftMs: connected && !blocked ? driftMs : null,
-        state: blocked
-          ? "blocked"
-          : Math.abs(driftMs) > 200
-            ? "correcting"
-            : playing
-              ? "synced"
-              : "paused",
-      });
-      if (v) {
-        if (fix.seek) v.currentTime = bounded;
-        v.playbackRate = fix.rate;
-        if (playing && v.paused && !v.ended)
-          void v
-            .play()
-            .then(() => setBlocked(false))
-            .catch(() => setBlocked(true));
-        if (!playing && !v.paused) v.pause();
-      }
-      if (y) {
-        if (fix.seek) y.seekTo(bounded, true);
-        const status = y.getPlayerState();
-        if (playing && status !== 1 && status !== 3 && status !== 0)
-          y.playVideo();
-        if (!playing && status !== 2) y.pauseVideo();
-      }
-      setPosition(bounded);
-      setDuration(Number.isFinite(length) ? length : 0);
+    const adapter = video.current
+      ? html5Adapter(video.current)
+      : yt.current
+        ? youtubeAdapter(yt.current)
+        : null;
+    if (!adapter) return;
+    const next = new PlaybackEngine(adapter, {
+      clock: clockSync,
+      store: syncStore,
+      visible: () => !document.hidden,
+      send: (action, target) => latestControl.current(action, target),
+      onTime: (time, length) => presentTime.current(time, length),
+      onBlocked: setBlocked,
+      onError: setError,
+    });
+    engine.current = next;
+    next.setContext(host, connected);
+    next.receive(latest.current);
+    const visibility = () => {
+      next.setVisible(!document.hidden);
+      if (!document.hidden) next.resync();
     };
-    sync();
-    const timer = window.setInterval(sync, 500);
-    return () => window.clearInterval(timer);
-  }, [ready, playback.revision, connected, offset, error, blocked]);
+    document.addEventListener("visibilitychange", visibility);
+    const unsubscribe = subscribeResync(() => next.resync());
+    return () => {
+      unsubscribe();
+      document.removeEventListener("visibilitychange", visibility);
+      next.dispose();
+      if (engine.current === next) engine.current = null;
+    };
+  }, [ready, error, media?.id]);
+  useEffect(() => {
+    engine.current?.setContext(host, connected);
+  }, [host, connected]);
+  useEffect(() => {
+    engine.current?.receive(playback);
+  }, [playback]);
+  function issue(action: Action, target: number) {
+    const accepted =
+      action === "seek"
+        ? engine.current?.command(action, target)
+        : engine.current?.command(action);
+    if (accepted && action === "seek") {
+      position.current = target;
+      if (currentTimeLabel.current)
+        currentTimeLabel.current.textContent = timestamp(target);
+    }
+  }
+  function commitSeek() {
+    if (!seeking.current) return;
+    seeking.current = false;
+    issue("seek", Number(seekInput.current?.value ?? position.current));
+  }
   const commands = useRef({
     host,
     connected,
     ready,
     playback,
-    position,
-    control,
+    position: position.current,
+    control: issue,
   });
   commands.current = {
     host,
     connected,
     ready: ready && !error,
     playback,
-    position,
-    control,
+    position: position.current,
+    control: issue,
   };
   useEffect(() => {
     const changed = () =>
@@ -290,7 +312,7 @@ export function Player({
         event.preventDefault();
         value.control(
           value.playback.playing ? "pause" : "play",
-          value.position,
+          position.current,
         );
       }
       if (
@@ -305,11 +327,11 @@ export function Player({
           video.current?.duration ?? yt.current?.getDuration() ?? 0;
         const target = Math.max(
           0,
-          value.position + (event.key.toLowerCase() === "j" ? -10 : 10),
+          position.current + (event.key.toLowerCase() === "j" ? -10 : 10),
         );
         const next =
           localDuration > 0 ? Math.min(target, localDuration) : target;
-        setPosition(next);
+        position.current = next;
         commands.current.position = next;
         value.control("seek", next);
       }
@@ -322,10 +344,7 @@ export function Player({
     return () => window.removeEventListener("keydown", key);
   }, []);
   function enable() {
-    setBlocked(false);
-    if (!latest.current.playing) return;
-    void video.current?.play().catch(() => setBlocked(true));
-    yt.current?.playVideo();
+    engine.current?.gesture();
   }
   function toggleMute() {
     const next = !muted;
@@ -415,26 +434,58 @@ export function Player({
           className="icon-button"
           aria-label={playback.playing ? "Pause" : "Play"}
           disabled={!host || !connected || !media || !ready || !!error}
-          onClick={() => control(playback.playing ? "pause" : "play", position)}
+          onClick={() =>
+            issue(playback.playing ? "pause" : "play", position.current)
+          }
         >
           {playback.playing ? "Ⅱ" : "▶"}
         </button>
-        <span className="time">{timestamp(position)}</span>
+        <span className="time" ref={currentTimeLabel}>
+          0:00
+        </span>
         <input
           aria-label="Seek video"
           type="range"
           min="0"
-          max={duration || Math.max(position, 1)}
+          ref={seekInput}
+          max="1"
           step="0.1"
-          value={Math.min(position, duration || Math.max(position, 1))}
-          disabled={!host || !connected || !media || !duration}
-          onChange={(e) => {
-            const target = Number(e.target.value);
-            setPosition(target);
-            control("seek", target);
+          defaultValue="0"
+          disabled={!host || !connected || !media || !ready || !!error}
+          onPointerDown={(event) => {
+            seeking.current = true;
+            event.currentTarget.setPointerCapture(event.pointerId);
+          }}
+          onPointerUp={commitSeek}
+          onPointerCancel={() => {
+            seeking.current = false;
+            engine.current?.resync();
+          }}
+          onBlur={commitSeek}
+          onKeyUp={(event) => {
+            if (
+              [
+                "ArrowLeft",
+                "ArrowRight",
+                "Home",
+                "End",
+                "PageUp",
+                "PageDown",
+              ].includes(event.key)
+            )
+              commitSeek();
+          }}
+          onChange={(event) => {
+            seeking.current = true;
+            if (currentTimeLabel.current)
+              currentTimeLabel.current.textContent = timestamp(
+                Number(event.target.value),
+              );
           }}
         />
-        <span className="time">{timestamp(duration)}</span>
+        <span className="time" ref={durationLabel}>
+          0:00
+        </span>
         <button
           className="icon-button"
           aria-label={muted ? "Unmute" : "Mute"}

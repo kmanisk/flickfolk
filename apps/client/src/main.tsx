@@ -1,3 +1,5 @@
+import { startClock } from "./lib/syncRuntime.js";
+import { SyncStatusline } from "./SyncStatusline.js";
 import { usePresence } from "./usePresence.js";
 import { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
@@ -49,7 +51,6 @@ function App() {
       location.pathname !== "/" &&
       !/^\/room\/[A-HJ-NP-Z2-9]{6}\/?$/i.test(location.pathname),
   );
-  const [rtt, setRtt] = useState<number | null>(null);
   const [metrics, setMetrics] = useState<PlaybackMetrics>({
     driftMs: null,
     state: "waiting",
@@ -69,7 +70,6 @@ function App() {
   const [busy, setBusy] = useState(false);
   const [url, setUrl] = useState("");
   const [copied, setCopied] = useState(false);
-  const offset = useRef(0);
   const connected = status === "Connected";
   const host = room?.hostId === socket.id;
   const voice = useVoice(
@@ -99,6 +99,9 @@ function App() {
     return () => observer.disconnect();
   }, [!!room]);
   function accept(next: Room) {
+    const current = roomRef.current;
+    if (current?.code === next.code && current.playback.revision > next.playback.revision)
+      next = { ...next, playback: current.playback };
     roomRef.current = next;
     setRoom(next);
   }
@@ -106,19 +109,8 @@ function App() {
     if (!result.ok) setError(result.error);
   }
   useEffect(() => {
-    function clock() {
-      if (!socket.connected) return;
-      const started = Date.now();
-      const monotonic = performance.now();
-      socket.timeout(5000).emit("clock", (err: Error | null, now: number) => {
-        if (!err) {
-          offset.current = now - (started + Date.now()) / 2;
-          setRtt(Math.round(performance.now() - monotonic));
-        } else setRtt(null);
-      });
-    }
+    const stopClock = startClock(socket);
     function connect() {
-      clock();
       const previous = roomRef.current;
       if (previous) {
         setStatus("Rejoining");
@@ -148,7 +140,6 @@ function App() {
     socket.on("connect", connect);
     socket.on("disconnect", () => {
       setStatus("Reconnecting");
-      setRtt(null);
     });
     socket.on("connect_error", () => setStatus("Reconnecting"));
     socket.on("room:state", accept);
@@ -167,9 +158,8 @@ function App() {
     window.addEventListener("offline", offline);
     window.addEventListener("online", online);
     socket.connect();
-    const timer = window.setInterval(clock, 15000);
     return () => {
-      window.clearInterval(timer);
+      stopClock();
       window.removeEventListener("offline", offline);
       window.removeEventListener("online", online);
       socket.removeAllListeners();
@@ -330,11 +320,6 @@ function App() {
   });
   const hostName =
     room?.participants.find((p) => p.id === room.hostId)?.name ?? "--";
-  const syncState = !connected
-    ? status.toLowerCase()
-    : !room
-      ? "standby"
-      : metrics.state;
   return (
     <div className={`app ${effects ? "fx-on" : "fx-off"}`}>
       <header className="site-header">
@@ -639,7 +624,6 @@ function App() {
               playback={room.playback}
               host={host}
               connected={connected}
-              offset={offset}
               control={control}
               onMetrics={setMetrics}
               channel={room.code}
@@ -810,38 +794,7 @@ function App() {
           <span>WATCH TOGETHER. FEEL CLOSER.</span>
         </footer>
       )}
-      <div className={`sync-statusline ${debug ? "debug-status" : ""}`} aria-label="Playback diagnostics">
-        <span className="status-brand">AFTERGLOW</span>
-        <span
-          className={connected ? "status-connected" : "status-disconnected"}
-        >
-          {syncState}
-        </span>
-        <span
-          className="status-secondary"
-          data-testid="drift"
-          title="Playback offset from the server timeline, not network latency. Positive means behind; offsets within 200 ms are in tolerance while playing."
-        >
-          offset{" "}
-          {connected &&
-          room &&
-          metrics.driftMs !== null &&
-          !["error", "blocked", "loading"].includes(metrics.state)
-            ? `${metrics.driftMs > 0 ? "+" : ""}${Math.round(metrics.driftMs)}ms`
-            : "--"}
-        </span>
-        <span className="status-secondary" data-testid="rtt">
-          rtt {connected && rtt !== null ? `${rtt}ms` : "--"}
-        </span>
-        <span className="status-secondary">
-          state {room ? `v${room.playback.revision}` : "--"}
-        </span>
-        <span className="status-host">host {hostName}</span>
-        <span className="status-count">
-          {room ? `${room.participants.length} ${room.participants.length === 1 ? "person" : "people"}` : "-- people"}
-        </span>
-        <span className="status-room">{room?.code ?? "STANDBY"}</span>
-      </div>
+      <SyncStatusline room={room} connected={connected} status={status} phase={metrics.state} hostName={hostName} debug={debug} />
     </div>
   );
 }
