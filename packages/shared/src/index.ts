@@ -49,9 +49,12 @@ export type Result<T = void> =
   { ok: true; data: T } | { ok: false; error: string };
 export type Ack<T = void> = (result: Result<T>) => void;
 export interface ClientEvents {
-  "room:create": (payload: { name: string }, ack: Ack<Room>) => void;
+  "room:create": (
+    payload: { name: string; clientId?: string },
+    ack: Ack<Room>,
+  ) => void;
   "room:join": (
-    payload: { name: string; code: string },
+    payload: { name: string; code: string; clientId?: string },
     ack: Ack<Room>,
   ) => void;
   "room:leave": (ack: Ack) => void;

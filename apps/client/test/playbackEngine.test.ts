@@ -98,6 +98,22 @@ describe("framework-independent engine", () => {
     expect(player.seek).toHaveBeenCalledTimes(seeks);
     expect(player.time).toBe(10);
   });
+  it("treats media end as terminal and never auto-restarts it", async () => {
+    const { engine, player, send } = setup();
+    player.duration = 10;
+    player.time = 9.9;
+    engine.receive(state(1, true, 9.9));
+    await Promise.resolve();
+    send.mockClear();
+    player.play.mockClear();
+    player.time = 10;
+    player.playing = false;
+    player.emit({ type: "ended" });
+    expect(send).toHaveBeenCalledWith("pause", 10);
+    player.play.mockClear();
+    engine.tick();
+    expect(player.play).not.toHaveBeenCalled();
+  });
   it("guards programmatic events for 600ms and never emits rate changes", async () => {
     const { engine, player, send } = setup();
     engine.receive(state());

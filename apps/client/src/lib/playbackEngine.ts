@@ -26,6 +26,7 @@ export class PlaybackEngine {
   private blocked = false;
   private playPending = false;
   private playGeneration = 0;
+  private ended = false;
   private applying = false;
   private awaitingPosition = false;
   private ignoreUntil = -Infinity;
@@ -143,7 +144,7 @@ export class PlaybackEngine {
       this.playback?.playing &&
       !this.disposed
     )
-      this.timer = setInterval(() => this.tick(), 1000);
+      this.timer = setInterval(() => this.tick(), 500);
   }
   setContext(host: boolean, connected: boolean) {
     const changed = this.connected !== connected;
@@ -164,6 +165,14 @@ export class PlaybackEngine {
     )
       return false;
     this.playback = { ...playback };
+    const duration = this.adapter.getDuration();
+    const expected = this.target();
+    if (
+      !Number.isFinite(duration) ||
+      duration <= 0 ||
+      expected < duration - 0.25
+    )
+      this.ended = false;
     this.consecutiveOver = 0;
     this.nudging = false;
     this.resync();
@@ -257,6 +266,12 @@ export class PlaybackEngine {
     )
       return;
     this.time();
+    if (this.ended) {
+      this.consecutiveOver = 0;
+      this.setRate(1);
+      this.publish("synced");
+      return;
+    }
     if (this.blocked || this.adapter.isBuffering()) {
       this.consecutiveOver = 0;
       this.publish("buffering");
@@ -272,8 +287,8 @@ export class PlaybackEngine {
     const threshold = !this.adapter.canSetRate
       ? 0.6
       : this.nudging
-        ? 0.05
-        : 0.12;
+        ? 0.04
+        : 0.08;
     const over = !this.adapter.canSetRate
       ? Math.abs(driftSec) > threshold
       : Math.abs(driftSec) >= threshold;
@@ -320,6 +335,12 @@ export class PlaybackEngine {
       this.afterSeek = action;
       return true;
     }
+    if (action === "play" && this.ended) {
+      this.ended = false;
+      if (!this.command("seek", 0)) return false;
+      return this.command("play", 0);
+    }
+    if (action === "seek") this.ended = false;
     const bounded = this.clamp(position);
     const remaining =
       150 - (this.now() - (this.sentAt.get(action) ?? -Infinity));
@@ -375,6 +396,23 @@ export class PlaybackEngine {
       return;
     }
     this.time();
+    if (event.type === "ended") {
+      this.ended = true;
+      this.playGeneration++;
+      this.playPending = false;
+      this.setRate(1);
+      if (this.host && this.playback?.playing && this.connected) {
+        const duration = this.adapter.getDuration();
+        this.command(
+          "pause",
+          Number.isFinite(duration) && duration > 0
+            ? duration
+            : this.adapter.getTime(),
+        );
+      }
+      this.publish("synced");
+      return;
+    }
     if (event.type === "buffering") {
       if (this.playback && this.connected)
         this.publish(
@@ -383,7 +421,7 @@ export class PlaybackEngine {
       return;
     }
     if (this.applying || !this.playback || !this.connected) return;
-    const action = event.type === "ended" ? "pause" : event.action;
+    const action = event.action;
     if (this.now() < this.ignoreUntil) {
       // Native provider controls never gain guest authority, including inside the echo window.
       if (

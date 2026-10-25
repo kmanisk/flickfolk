@@ -33,9 +33,9 @@ const base = {
 describe("provider correction policy", () => {
   it.each([
     [0, "none", 1],
-    [0.119, "none", 1],
-    [0.12, "rate", 0.95],
-    [-0.12, "rate", 1.05],
+    [0.079, "none", 1],
+    [0.08, "rate", 0.95],
+    [-0.08, "rate", 1.05],
     [2, "rate", 0.95],
     [2.001, "seek", 1],
     [-2.001, "seek", 1],
@@ -45,15 +45,15 @@ describe("provider correction policy", () => {
     expect(fix.rate).toBe(rate);
     if (fix.action === "seek") expect(fix.seekTo).toBe(40);
   });
-  it("requires two bad measurements and holds a nudge until under .05s", () => {
+  it("requires two bad measurements and holds a nudge until under .04s", () => {
     expect(
       computeCorrection({ ...base, driftSec: 0.3, consecutiveOver: 1 }).action,
     ).toBe("none");
     expect(
-      computeCorrection({ ...base, driftSec: 0.08, nudging: true }).action,
+      computeCorrection({ ...base, driftSec: 0.06, nudging: true }).action,
     ).toBe("rate");
     expect(
-      computeCorrection({ ...base, driftSec: 0.049, nudging: true }),
+      computeCorrection({ ...base, driftSec: 0.039, nudging: true }),
     ).toEqual({ action: "none", rate: 1 });
   });
   it.each([

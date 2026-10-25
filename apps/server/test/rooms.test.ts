@@ -155,6 +155,35 @@ describe("two-client playback protocol", () => {
     expect(result.ok && result.data.hostId).toBe(guest.id);
     expect(result.ok && result.data.participants.length).toBe(2);
   });
+  it("replaces a stale same-browser participant instead of duplicating it", async () => {
+    const first = await connect();
+    const created = await request<Room>((ack) =>
+      first.emit(
+        "room:create",
+        { name: "Same person", clientId: "browser-client-123" },
+        ack,
+      ),
+    );
+    if (!created.ok) throw new Error(created.error);
+    const second = await connect();
+    const joined = await request<Room>((ack) =>
+      second.emit(
+        "room:join",
+        {
+          name: "Same person",
+          code: created.data.code,
+          clientId: "browser-client-123",
+        },
+        ack,
+      ),
+    );
+    expect(joined.ok).toBe(true);
+    if (joined.ok) {
+      expect(joined.data.participants).toHaveLength(1);
+      expect(joined.data.participants[0]?.id).toBe(second.id);
+      expect(joined.data.hostId).toBe(second.id);
+    }
+  });
   it("shares chat and history while rejecting empty messages", async () => {
     const { host, guest, code } = await setup();
     const state = nextState(guest);
