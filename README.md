@@ -7,9 +7,11 @@ voice, live reactions and collaborative chat. The Warm Dusk interface uses local
 Figtree/JetBrains Mono fonts, coral controls and deterministic initials avatars.
 No accounts, camera, database or paid service are required for the core app.
 
-[Source](https://github.com/kmanisk/flickfolk) · [Deployment guide](DEPLOY.md) · [Design](DESIGN.md)
+**Live:** [flickfolk.onrender.com](https://flickfolk.onrender.com)
 
-## Run locally
+[Live app](https://flickfolk.onrender.com) · [Source](https://github.com/kmanisk/flickfolk) · [Deployment guide](DEPLOY.md) · [Design](DESIGN.md)
+
+## Development
 
 Requires Node 22.12+ (24 recommended) and npm. Run from this project directory:
 
@@ -19,9 +21,9 @@ cp .env.example .env
 npm run dev
 ```
 
-Open **http://localhost:5173**. The Vite server proxies the API and Socket.IO to
-port 3001. Open a second browser/tab, create a room and paste its invite into the
-other browser. Use different display names. Microphones start off.
+The Vite development server proxies the API and Socket.IO to the Node server.
+Open two browser sessions, create a room and use the invite link in the second
+session with a different display name. Microphones start off.
 
 For a production build served by Express:
 
@@ -30,8 +32,8 @@ npm run build
 NODE_ENV=production npm start
 ```
 
-Open **http://localhost:3001**. `PORT` and `HOST` are configurable. Both npm launch
-paths load the project-root `.env`; restart after changing server configuration.
+`PORT` and `HOST` are configurable. Both npm launch paths load the project-root
+`.env`; restart after changing server configuration.
 
 ```bash
 docker compose up --build
@@ -58,13 +60,9 @@ hidden. Validated direct image/GIF links remain available under the emoji picker
 
 ## Screenshots
 
-<!-- Replace these captures when the visual reference is supplied or the UI changes. -->
 ![Flickfolk Home at 1366×768](docs/screenshots/home-1366.png)
 ![Flickfolk Room at 1366×768](docs/screenshots/room-1366.png)
 ![Flickfolk Room at 390×844](docs/screenshots/room-390.png)
-
-The requested `design/refs/room.png` was absent during implementation. These renders
-follow the written Warm Dusk brief; they do not claim a pixel match to an unseen image.
 
 ## Architecture
 
@@ -153,8 +151,7 @@ Set optional `STUN_URLS`, `TURN_URLS`, `TURN_USERNAME`, `TURN_PASSWORD` in `.env
 Public Google STUN is the default; TURN is not provisioned. Restrictive networks
 need a relay. Browser-delivered TURN credentials are not secrets from that browser:
 use restricted, rotatable or provider-issued short-lived credentials in production.
-Physical-device, echo-quality and cross-network TURN tests remain necessary. Phone
-microphones require HTTPS; a plain LAN-IP HTTP origin is not a secure context.
+Physical-device, echo-quality and cross-network TURN tests remain necessary.
 
 ## Optional GIF provider
 
@@ -206,18 +203,22 @@ real Socket.IO clients and media playback; synthetic audio passes through actual
 WebRTC to verify RMS, normalization-path setup, ducking, mute/zero and cleanup.
 Provider browser tests mock official SDK boundaries while using the real room/socket/engine path.
 Synthetic tests do not certify live provider availability, accounts, physical microphones or relay infrastructure.
-GitHub Actions runs checks and a Docker build. Nothing is deployed automatically.
+GitHub Actions runs lint, typecheck, tests, build, Playwright and Docker verification on pushes and pull requests.
 
 ## Deployment and scaling
 
-Follow [DEPLOY.md](DEPLOY.md). Render's blueprint is one Node web service, uses `PORT`
-and serves both HTTP and Socket.IO behind HTTPS. No services or credentials have
-been provisioned. Finish phone/laptop, YouTube, late-join and host disconnect/reconnect
-checks before deployment. Add the approved `public/og.png` sharing asset and reconcile
-the missing locked visual reference.
+**Production:** [https://flickfolk.onrender.com](https://flickfolk.onrender.com)
+
+Flickfolk is deployed as one free Render Node web service in Singapore. Express serves
+the built client and Socket.IO from the same HTTPS origin. `/healthz` is available for
+health checks. Deployments track the `main` branch.
+
+The current service intentionally runs a single instance because authoritative room
+state, messages and invites are in memory. A restart or redeploy clears active rooms.
+This is acceptable for the current signup-free MVP and avoids requiring a database.
 
 For multiple instances, a Socket.IO Redis adapter can distribute broadcasts, but
 it does **not** make this in-memory authoritative room state shared or persistent.
 A scaling design also needs consistent room ownership/state, coordinated limits,
 recovery semantics and sticky routing for polling. Do not enable multiple instances
-with this MVP or infer production scale from small-room local tests.
+with this MVP or infer production scale from small-room tests.
