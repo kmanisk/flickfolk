@@ -290,7 +290,7 @@ describe("room collaboration", () => {
     ).toBe(true);
     expect(await reaction).toMatchObject({ senderId: host.id, symbol });
     expect(app.rooms.get(code)!.messages).toHaveLength(0);
-    for (let n = 0; n < 4; n++)
+    for (let n = 0; n < 7; n++)
       expect(
         (await request((ack) => host.emit("reaction:send", { symbol }, ack)))
           .ok,

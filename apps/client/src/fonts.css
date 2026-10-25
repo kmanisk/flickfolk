@@ -1,15 +1,16 @@
-@import "@fontsource-variable/ibm-plex-sans/standard.css";
 @font-face {
-  font-family: "Instrument Serif";
+  font-family: "Figtree Variable";
   font-style: normal;
-  font-weight: 400;
+  font-weight: 300 900;
   font-display: swap;
-  src: url("./fonts/instrument-serif.ttf");
+  src: url("@fontsource-variable/figtree/files/figtree-latin-wght-normal.woff2")
+    format("woff2");
 }
 @font-face {
-  font-family: "JetBrains Mono";
+  font-family: "JetBrains Mono Variable";
   font-style: normal;
   font-weight: 100 800;
   font-display: swap;
-  src: url("./fonts/jetbrains-mono.ttf");
+  src: url("@fontsource-variable/jetbrains-mono/files/jetbrains-mono-latin-wght-normal.woff2")
+    format("woff2");
 }

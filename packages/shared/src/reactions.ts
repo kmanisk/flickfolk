@@ -10,5 +10,5 @@ export function addReaction(items: Reaction[], next: Reaction): Reaction[] {
     )
   )
     return items;
-  return [...items.slice(-11), next];
+  return [...items.slice(-29), next];
 }

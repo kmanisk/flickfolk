@@ -1,3 +1,4 @@
+import { createApp } from "../apps/server/src/server.js";
 import {
   test,
   expect,
@@ -34,12 +35,22 @@ async function serveClip(context: BrowserContext) {
     });
   });
 }
-async function createRoom(page: Page) {
-  await page.goto("/");
+async function isolatedRoomServer() {
+  const app = createApp();
+  await new Promise<void>((resolve) =>
+    app.http.listen(0, "127.0.0.1", resolve),
+  );
+  const address = app.http.address();
+  if (!address || typeof address === "string")
+    throw new Error("No test listener");
+  return { app, origin: `http://127.0.0.1:${address.port}` };
+}
+async function createRoom(page: Page, debug = false, origin = "/") {
+  await page.goto(debug ? `${origin}?debug=1` : origin);
   await page.getByLabel("What should we call you?").fill("Alex");
-  await page.getByRole("button", { name: "Create a room" }).click();
+  await page.getByRole("button", { name: "Start a room" }).click();
   await expect(page.getByRole("heading", { name: /Room / })).toBeVisible();
-  await expect(page).toHaveURL(/\/room\/[A-HJ-NP-Z2-9]{6}$/);
+  await expect(page).toHaveURL(/\/room\/[A-HJ-NP-Z2-9]{6}(?:\?debug=1)?$/);
 }
 test("desktop and mobile home remain accessible and fit the viewport", async ({
   page,
@@ -58,7 +69,7 @@ test("desktop and mobile home remain accessible and fit the viewport", async ({
       () => document.documentElement.scrollWidth <= innerWidth,
     ),
   ).toBe(true);
-  await page.getByRole("button", { name: "Create a room" }).click();
+  await page.getByRole("button", { name: "Start a room" }).click();
   await expect(page.getByRole("alert")).toContainText("1–32");
   await page.screenshot({
     path: "test-results/home-mobile.png",
@@ -86,7 +97,7 @@ test("two browsers synchronize real video, chat, reconnect and host promotion", 
     }),
   );
   try {
-    await createRoom(host);
+    await createRoom(host, true);
     const invite = host.url();
     await guest.goto(invite);
     await guest.getByLabel("What should we call you?").fill("Sam");
@@ -205,12 +216,16 @@ test("two browsers synchronize real video, chat, reconnect and host promotion", 
       .toBe(true);
     await guest.getByLabel("Chat message").fill("This is our movie night.");
     await guest.getByRole("button", { name: "Send message" }).click();
-    await expect(host.getByText("This is our movie night.")).toBeVisible();
+    await expect(
+      host.getByRole("log").getByText("This is our movie night."),
+    ).toBeVisible();
     await second.setOffline(true);
     await expect(guest.getByRole("status")).toContainText("Reconnecting");
     await second.setOffline(false);
     await expect(guest.getByRole("status")).toHaveText("Connected");
-    await expect(guest.getByText("This is our movie night.")).toBeVisible();
+    await expect(
+      guest.getByRole("log").getByText("This is our movie night."),
+    ).toBeVisible();
     await host.screenshot({
       path: "test-results/room-desktop.png",
       fullPage: true,
@@ -261,13 +276,13 @@ test("room lookup maps waiting, tuning, found and no signal and aborts stale req
   release?.();
   await expect(lookup).toContainText("room found / 3");
   await expect(
-    page.getByRole("img", { name: /CRT test card/ }),
-  ).toHaveAccessibleName(/DEF567/);
+    page.getByRole("region", { name: "Room preview" }),
+  ).toContainText("DEF567");
   await page.getByLabel("Room code or invite link").fill("ZZZZZZ");
   await expect(lookup).toHaveText("no signal");
   await page.getByLabel("Room code or invite link").fill("");
   await expect(lookup).toHaveText("waiting");
-  await expect(page.getByTestId("drift")).toHaveText("offset --");
+  await expect(page.getByTestId("drift")).toHaveCount(0);
 });
 
 test("tabs, keyboard, copy feedback, reduced motion and no-signal page", async ({
@@ -301,6 +316,7 @@ test("tabs, keyboard, copy feedback, reduced motion and no-signal page", async (
         .locator(".screen-fx")
         .evaluate((element) => getComputedStyle(element).display),
     ).toBe("none");
+    await page.getByRole("button", { name: "Audio settings" }).click();
     await page.getByRole("button", { name: "[fx]", exact: true }).click();
     await expect(
       page.getByRole("button", { name: "[fx off]", exact: true }),
@@ -328,7 +344,7 @@ test("unavailable direct media shows an error and no invented drift", async ({
     .fill("https://media.example/unavailable.webm");
   await page.getByRole("button", { name: "Load video" }).click();
   await expect(page.getByRole("alert")).toContainText("Video could not load");
-  await expect(page.getByTestId("drift")).toHaveText("offset --");
+  await expect(page.getByTestId("drift")).toHaveText("--");
 });
 
 test("fullscreen button and F toggle both ways and track Escape", async ({
@@ -494,6 +510,7 @@ test("J K L use host commands and guests cannot control playback", async ({
     await host.getByLabel("Chat message").blur();
     await host.locator("body").click({ position: { x: 5, y: 5 } });
     await host.keyboard.press("x");
+    await host.getByRole("button", { name: "Audio settings" }).click();
     await expect(
       host.getByRole("button", { name: "[fx off]", exact: true }),
     ).toHaveAttribute("aria-pressed", "false");
@@ -543,7 +560,9 @@ test("GIFs, reactions, multiline chat and scroll-aware unread messages", async (
     await expect(guest.getByRole("log")).toContainText(
       "first line\nsecond line",
     );
-    await host.getByRole("button", { name: "More message actions" }).click();
+    await host
+      .getByRole("button", { name: "Emoji picker", exact: true })
+      .click();
     await host.getByRole("button", { name: "Paste GIF link" }).click();
     await host
       .getByLabel("GIF URL")
@@ -552,8 +571,6 @@ test("GIFs, reactions, multiline chat and scroll-aware unread messages", async (
     await expect(
       guest.getByRole("img", { name: "Shared GIF or image" }),
     ).toBeVisible();
-    await host.getByRole("button", { name: "More message actions" }).click();
-    await host.getByRole("button", { name: "Reactions", exact: true }).click();
     await host.getByRole("button", { name: "React fire" }).click();
     await expect(guest.locator(".floating-reaction")).toHaveCount(1);
     await expect(guest.locator(".floating-reaction")).toHaveCount(0, {
@@ -569,7 +586,9 @@ test("GIFs, reactions, multiline chat and scroll-aware unread messages", async (
       await host.getByLabel("Chat message").press("Enter");
     }
     await expect(guest.getByRole("log")).toContainText("Message 11");
-    await expect(guest.getByRole("button", { name: /new message/ })).toHaveCount(0);
+    await expect(
+      guest.getByRole("button", { name: /new message/ }),
+    ).toHaveCount(0);
     await guest.getByRole("log").evaluate((el) => {
       el.scrollTop = 0;
       el.dispatchEvent(new Event("scroll"));
@@ -594,7 +613,10 @@ test("GIFs, reactions, multiline chat and scroll-aware unread messages", async (
       .getByRole("button", { name: "Fullscreen player", exact: true })
       .click();
     await expect(host.getByLabel("Fullscreen reactions")).toBeVisible();
-    await host.getByRole("button", { name: "React heart" }).click();
+    await host
+      .getByLabel("Fullscreen reactions")
+      .getByRole("button", { name: "React heart" })
+      .click();
     await expect(host.locator(".floating-reaction")).toHaveCount(1);
   } finally {
     await a.close();
@@ -771,16 +793,42 @@ test("audio-only voice connects with explicit permission, mute and teardown", as
         { timeout: 10000 },
       )
       .toBeLessThan(0.6);
-    await expect(host.locator(".active-speaker").filter({ hasText: "Alex" })).toBeVisible();
-    await expect(host.locator(".active-speaker").filter({ hasText: "Sam" })).toBeVisible();
-    await expect.poll(() => host.locator(".active-speaker .person-avatar").first().evaluate((el) => Number(el.style.getPropertyValue("--voice-level")))).toBeGreaterThan(0);
+    await expect(
+      host.locator(".active-speaker").filter({ hasText: "Alex" }),
+    ).toBeVisible();
+    await expect(
+      host.locator(".active-speaker").filter({ hasText: "Sam" }),
+    ).toBeVisible();
+    await expect
+      .poll(() =>
+        host
+          .locator(".active-speaker .person-avatar")
+          .first()
+          .evaluate((el) => Number(el.style.getPropertyValue("--voice-level"))),
+      )
+      .toBeGreaterThan(0);
     await host.getByRole("tab", { name: /People/ }).click();
     await expect(host.getByLabel("Sam: speaking")).toBeVisible();
-    await host.screenshot({ path: "test-results/ux-active-speakers-people.png", fullPage: true, animations: "disabled" });
+    await host.screenshot({
+      path: "test-results/ux-active-speakers-people.png",
+      fullPage: true,
+      animations: "disabled",
+    });
     await host.locator("body").click({ position: { x: 5, y: 5 } });
     await host.keyboard.press("f");
-    await expect.poll(() => host.evaluate(() => document.fullscreenElement?.querySelectorAll(".active-speaker").length)).toBe(2);
-    await host.screenshot({ path: "test-results/ux-fullscreen-speakers.png", animations: "disabled" });
+    await expect
+      .poll(() =>
+        host.evaluate(
+          () =>
+            document.fullscreenElement?.querySelectorAll(".active-speaker")
+              .length,
+        ),
+      )
+      .toBe(2);
+    await host.screenshot({
+      path: "test-results/ux-fullscreen-speakers.png",
+      animations: "disabled",
+    });
     await host.keyboard.press("Escape");
     await host.getByRole("tab", { name: /Chat/ }).click();
 
@@ -792,10 +840,14 @@ test("audio-only voice connects with explicit permission, mute and teardown", as
         host.locator("video").evaluate((el) => (el as HTMLVideoElement).volume),
       )
       .toBe(0.73);
-    await expect(host.locator(".active-speaker").filter({ hasText: "Sam" })).toHaveCount(0);
+    await expect(
+      host.locator(".active-speaker").filter({ hasText: "Sam" }),
+    ).toHaveCount(0);
     await expect(
       host.getByRole("button", { name: "Pause", exact: true }),
     ).toBeVisible();
+    await host.locator(".player-shell").hover();
+    await expect(host.locator(".player-shell")).toHaveClass(/controls-visible/);
     await host.getByRole("button", { name: "Mute", exact: true }).click();
     expect(
       await host
@@ -827,6 +879,10 @@ test("audio-only voice connects with explicit permission, mute and teardown", as
     expect(
       await host.evaluate(() => localStorage.getItem("afterglow-ducking")),
     ).toBe("off");
+    await host.keyboard.press("Escape");
+    await expect(
+      host.getByRole("dialog", { name: "Room settings" }),
+    ).toHaveCount(0);
     await host.getByRole("tab", { name: /People/ }).click();
     await expect(host.getByLabel(/Sam: (speaking|live)/)).toBeVisible();
     await host.keyboard.press("m");
@@ -895,7 +951,7 @@ test("GIF picker search/select and Escape/outside click work at 360px", async ({
     height: 240,
   };
   await page.route("**/api/gifs/*", (route) =>
-    route.fulfill({ json: { gifs: [item] } }),
+    route.fulfill({ json: { available: true, gifs: [item] } }),
   );
   await page.route("https://media.giphy.com/**", (route) =>
     route.fulfill({
@@ -915,9 +971,15 @@ test("GIF picker search/select and Escape/outside click work at 360px", async ({
     page.getByRole("img", { name: "Powered by GIPHY" }),
   ).toBeVisible();
   await page.getByRole("textbox", { name: "Search GIFs" }).fill("cats");
-  await expect(page.getByRole("button", { name: "Send Cat wave" })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Send Cat wave" }),
+  ).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.screenshot({ path: "test-results/ux-gif-grid-mobile.png", fullPage: true, animations: "disabled" });
+  await page.screenshot({
+    path: "test-results/ux-gif-grid-mobile.png",
+    fullPage: true,
+    animations: "disabled",
+  });
   await page.getByRole("button", { name: "Send Cat wave" }).click();
   await expect(page.getByRole("dialog", { name: "GIF picker" })).toHaveCount(0);
   await expect(
@@ -947,15 +1009,13 @@ test("optimistic reactions reconcile, cap nodes and reduce motion", async ({
 }) => {
   await createRoom(page);
   const code = page.url().split("/").at(-1)!;
-  await page.getByRole("button", { name: "More message actions" }).click();
-  await page.getByRole("button", { name: "Reactions", exact: true }).click();
   await page.getByRole("button", { name: "React fire" }).click();
   await expect(page.locator(".floating-reaction")).toHaveCount(1);
   await expect(page.locator(".floating-reaction")).toHaveCount(0, {
     timeout: 3000,
   });
   const clients = Array.from(
-    { length: 3 },
+    { length: 4 },
     () =>
       socketClient(baseURL!, {
         transports: ["websocket"],
@@ -977,7 +1037,7 @@ test("optimistic reactions reconcile, cap nodes and reduce motion", async ({
       ),
     );
     for (const client of clients)
-      for (let n = 0; n < 5; n++) {
+      for (let n = 0; n < 8; n++) {
         await new Promise<void>((resolve) =>
           client.emit("reaction:send", { symbol: REACTIONS[5] }, () =>
             resolve(),
@@ -986,13 +1046,12 @@ test("optimistic reactions reconcile, cap nodes and reduce motion", async ({
         // Volatile room events deliberately drop bursts on a busy transport.
         await new Promise((resolve) => setTimeout(resolve, 25));
       }
-    await expect(page.locator(".floating-reaction")).toHaveCount(12);
+    await expect(page.locator(".floating-reaction")).toHaveCount(30);
     await expect(page.locator(".floating-reaction")).toHaveCount(0, {
       timeout: 3000,
     });
+    await page.getByRole("button", { name: "Audio settings" }).click();
     await page.getByRole("button", { name: "[fx]", exact: true }).click();
-    await page.getByRole("button", { name: "More message actions" }).click();
-    await page.getByRole("button", { name: "Reactions", exact: true }).click();
     await page.getByRole("button", { name: "React heart" }).click();
     await expect(page.locator(".floating-reaction")).toHaveClass(
       /reaction-static/,
@@ -1005,24 +1064,38 @@ test("optimistic reactions reconcile, cap nodes and reduce motion", async ({
   }
 });
 
-test("compact composer, emoji messages, source editing and normal/debug telemetry", async ({ page }) => {
+test("compact composer, emoji messages, source editing and normal/debug telemetry", async ({
+  page,
+}) => {
   await serveClip(page.context());
   await page.setViewportSize({ width: 1440, height: 1000 });
   await createRoom(page);
   await page.evaluate(() => document.fonts.ready);
-  await expect(page.getByTestId("rtt")).toBeHidden();
-  await page.screenshot({ path: "test-results/ux-idle-room.png", fullPage: true, animations: "disabled" });
+  await expect(page.getByText(/^state v/)).toHaveCount(0);
+  await page.screenshot({
+    path: "test-results/ux-idle-room.png",
+    fullPage: true,
+    animations: "disabled",
+  });
   const input = page.getByLabel("Chat message");
   await input.focus();
   await input.evaluate((element) => {
     const data = new DataTransfer();
     data.setData("text/plain", "<img src=x onerror=alert(1)>");
-    data.setData("text/html", '<img src=x onerror=alert(1)>');
-    element.dispatchEvent(new ClipboardEvent("paste", { clipboardData: data, bubbles: true, cancelable: true }));
+    data.setData("text/html", "<img src=x onerror=alert(1)>");
+    element.dispatchEvent(
+      new ClipboardEvent("paste", {
+        clipboardData: data,
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
   });
   await expect(input).toHaveValue("<img src=x onerror=alert(1)>");
   await input.press("Enter");
-  await expect(page.getByRole("log")).toContainText("<img src=x onerror=alert(1)>");
+  await expect(page.getByRole("log")).toContainText(
+    "<img src=x onerror=alert(1)>",
+  );
   await expect(page.getByRole("log").locator("img")).toHaveCount(0);
   await page.getByRole("button", { name: "Emoji picker", exact: true }).click();
   await page.getByRole("button", { name: "Insert heart" }).click();
@@ -1031,105 +1104,424 @@ test("compact composer, emoji messages, source editing and normal/debug telemetr
   await expect(page.locator(".emoji-count-1")).toHaveCSS("font-size", "52px");
   await page.getByLabel("Video URL").fill("https://media.example/clip.webm");
   await page.getByRole("button", { name: "Load video" }).click();
-  await expect(page.getByRole("button", { name: /Edit source/ })).toHaveAttribute("aria-expanded", "false");
+  await expect(
+    page.getByRole("button", { name: /Edit source/ }),
+  ).toHaveAttribute("aria-expanded", "false");
   await expect(page.getByLabel("Video URL")).toBeHidden();
   await page.getByRole("button", { name: /Edit source/ }).click();
   await expect(page.getByLabel("Video URL")).toBeVisible();
-  await page.getByRole("button", { name: /SOURCE.*Close/ }).click();
-  await page.screenshot({ path: "test-results/ux-loaded-chat.png", fullPage: true, animations: "disabled" });
+  await page.getByRole("button", { name: "Close source editor" }).click();
+  await page.screenshot({
+    path: "test-results/ux-loaded-chat.png",
+    fullPage: true,
+    animations: "disabled",
+  });
   await page.setViewportSize({ width: 390, height: 844 });
   await input.scrollIntoViewIfNeeded();
-  await page.screenshot({ path: "test-results/ux-mobile-chat.png", fullPage: true, animations: "disabled" });
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await page.goto("/?debug=1");
-  await expect(page.getByTestId("rtt")).toBeVisible();
+  await page.screenshot({
+    path: "test-results/ux-mobile-chat.png",
+    fullPage: true,
+    animations: "disabled",
+  });
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+  await page.evaluate(() =>
+    history.replaceState(null, "", `${location.pathname}?debug=1`),
+  );
+  await page.setViewportSize({ width: 1366, height: 768 });
+  await page.getByRole("button", { name: "Audio settings" }).click();
+  await expect(page.getByText(/^state v/)).toBeVisible();
 });
 
-test("active speaker overlay caps presence and clears disconnected participants", async ({ page }) => {
+test("active speaker overlay caps presence and clears disconnected participants", async ({
+  page,
+}) => {
   await createRoom(page);
   const code = page.url().split("/").pop()!;
   const clients: Socket<ServerEvents, ClientEvents>[] = [];
   try {
     for (let i = 0; i < 4; i++) {
-      const client = socketClient("http://127.0.0.1:3101", { forceNew: true }) as Socket<ServerEvents, ClientEvents>;
+      const client = socketClient("http://127.0.0.1:3101", {
+        forceNew: true,
+      }) as Socket<ServerEvents, ClientEvents>;
       clients.push(client);
       await new Promise<void>((resolve, reject) => {
-        client.on("connect", () => client.emit("room:join", { code, name: `Speaker ${i}` }, (result) => result.ok ? resolve() : reject(new Error(result.error))));
+        client.on("connect", () =>
+          client.emit("room:join", { code, name: `Speaker ${i}` }, (result) =>
+            result.ok ? resolve() : reject(new Error(result.error)),
+          ),
+        );
         client.on("connect_error", reject);
       });
-      await new Promise<void>((resolve, reject) => client.emit("voice:state", { joined: true, muted: false, speaking: true }, (result) => result.ok ? resolve() : reject(new Error(result.error))));
+      await new Promise<void>((resolve, reject) =>
+        client.emit(
+          "voice:state",
+          { joined: true, muted: false, speaking: true },
+          (result) => (result.ok ? resolve() : reject(new Error(result.error))),
+        ),
+      );
     }
     await expect(page.locator(".active-speaker")).toHaveCount(3);
     await page.getByRole("tab", { name: /People/ }).click();
     await expect(page.getByLabel("Speaker 0: speaking")).toBeVisible();
-    await page.getByRole("button", { name: "Fullscreen player", exact: true }).click();
-    await expect.poll(() => page.evaluate(() => document.fullscreenElement?.querySelectorAll(".active-speaker").length)).toBe(3);
+    await page
+      .getByRole("button", { name: "Fullscreen player", exact: true })
+      .click();
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () =>
+            document.fullscreenElement?.querySelectorAll(".active-speaker")
+              .length,
+        ),
+      )
+      .toBe(3);
     for (const client of clients) client.disconnect();
     await expect(page.locator(".active-speaker")).toHaveCount(0);
-  } finally { for (const client of clients) client.disconnect(); }
+  } finally {
+    for (const client of clients) client.disconnect();
+  }
 });
 
-test("GIF picker distinguishes unavailable, empty, throttle and retry states", async ({ page }) => {
+test("GIF picker distinguishes unavailable, empty, throttle and retry states", async ({
+  page,
+}) => {
   let mode = "empty";
-  await page.route("**/api/gifs/*", (route) => route.fulfill(mode === "empty" ? { json: { gifs: [] } } : mode === "missing" ? { status: 503, json: { error: "GIF search unavailable" } } : mode === "busy" ? { status: 429, json: { error: "busy" } } : { status: 502, json: { error: "provider failed" } }));
+  await page.route("**/api/gifs/*", (route) =>
+    route.fulfill(
+      mode === "empty"
+        ? { json: { available: true, gifs: [] } }
+        : mode === "missing"
+          ? { status: 503, json: { error: "GIF search unavailable" } }
+          : mode === "busy"
+            ? { status: 429, json: { error: "busy" } }
+            : { status: 502, json: { error: "provider failed" } },
+    ),
+  );
   await createRoom(page);
   const open = page.getByRole("button", { name: "Search GIFs", exact: true });
   await open.click();
   await expect(page.getByText("No GIFs found.")).toBeVisible();
-  await page.keyboard.press("Escape"); mode = "busy";
+  await page.keyboard.press("Escape");
+  mode = "busy";
   await open.click();
-  await expect(page.getByRole("status").filter({ hasText: "busy" })).toBeVisible();
+  await expect(
+    page.getByRole("status").filter({ hasText: "busy" }),
+  ).toBeVisible();
   mode = "empty";
   await page.getByRole("button", { name: "Retry", exact: true }).click();
   await expect(page.getByText("No GIFs found.")).toBeVisible();
-  await page.screenshot({ path: "test-results/ux-gif-empty.png", fullPage: true, animations: "disabled" });
-  await page.keyboard.press("Escape"); mode = "missing";
+  await page.screenshot({
+    path: "test-results/ux-gif-empty.png",
+    fullPage: true,
+    animations: "disabled",
+  });
+  await page.keyboard.press("Escape");
+  mode = "missing";
   await open.click();
-  await expect(page.getByText("GIF search unavailable", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("GIF search unavailable", { exact: true }),
+  ).toBeVisible();
   await expect(page.getByRole("textbox", { name: "Search GIFs" })).toBeHidden();
-  await page.keyboard.press("Escape"); mode = "failure";
+  await page.keyboard.press("Escape");
+  mode = "failure";
   await open.click();
-  await expect(page.getByRole("button", { name: "Retry", exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Retry", exact: true }),
+  ).toBeVisible();
 });
 
-test("obsolete GIF searches cannot replace the latest results", async ({ page }) => {
-  const result = (title: string) => ({ gifs: [{ id: title, title, previewUrl: "https://media.giphy.com/media/cat/100.webp", originalUrl: "https://media.giphy.com/media/cat/giphy.gif", width: 320, height: 240 }] });
-  await page.route("https://media.giphy.com/**", (route) => route.fulfill({ contentType: "image/gif", body: Buffer.from("R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7", "base64") }));
+test("obsolete GIF searches cannot replace the latest results", async ({
+  page,
+}) => {
+  const result = (title: string) => ({
+    available: true,
+    gifs: [
+      {
+        id: title,
+        title,
+        previewUrl: "https://media.giphy.com/media/cat/100.webp",
+        originalUrl: "https://media.giphy.com/media/cat/giphy.gif",
+        width: 320,
+        height: 240,
+      },
+    ],
+  });
+  await page.route("https://media.giphy.com/**", (route) =>
+    route.fulfill({
+      contentType: "image/gif",
+      body: Buffer.from(
+        "R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7",
+        "base64",
+      ),
+    }),
+  );
   await page.route("**/api/gifs/*", async (route) => {
-    const q = new URL(route.request().url()).searchParams.get("q") ?? "trending";
+    const q =
+      new URL(route.request().url()).searchParams.get("q") ?? "trending";
     if (q === "old") await new Promise((resolve) => setTimeout(resolve, 600));
     await route.fulfill({ json: result(q) }).catch(() => {});
   });
   await createRoom(page);
   await page.getByRole("button", { name: "Search GIFs", exact: true }).click();
   const input = page.getByRole("textbox", { name: "Search GIFs" });
-  const obsolete = page.waitForRequest((request) => request.url().includes("q=old"));
+  const obsolete = page.waitForRequest((request) =>
+    request.url().includes("q=old"),
+  );
   await input.fill("old");
   await obsolete;
-  const aborted = page.waitForEvent("requestfailed", (request) => request.url().includes("q=old"));
+  const aborted = page.waitForEvent("requestfailed", (request) =>
+    request.url().includes("q=old"),
+  );
   await input.fill("latest");
   await aborted;
   await expect(page.getByRole("button", { name: "Send latest" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Send old", exact: true })).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Send old", exact: true }),
+  ).toHaveCount(0);
 });
 
-test("a pointer scrub emits only once on release, including release outside the rail", async ({ page }) => {
+test("a pointer scrub emits only once on release, including release outside the rail", async ({
+  page,
+}) => {
   await serveClip(page.context());
   let seeks = 0;
-  page.on("websocket", (connection) => connection.on("framesent", (frame) => {
-    if (String(frame.payload).includes('"action":"seek"')) seeks++;
-  }));
+  page.on("websocket", (connection) =>
+    connection.on("framesent", (frame) => {
+      if (String(frame.payload).includes('"action":"seek"')) seeks++;
+    }),
+  );
   await createRoom(page);
   await page.getByLabel("Video URL").fill("https://media.example/clip.webm");
   await page.getByRole("button", { name: "Load video" }).click();
-  await expect(page.getByRole("button", { name: "Play", exact: true })).toBeEnabled();
+  await expect(
+    page.getByRole("button", { name: "Play", exact: true }),
+  ).toBeEnabled();
   const slider = page.getByLabel("Seek video");
   const rect = (await slider.boundingBox())!;
   await page.mouse.move(rect.x + 5, rect.y + rect.height / 2);
   await page.mouse.down();
-  await page.mouse.move(rect.x + rect.width * .7, rect.y + rect.height / 2, { steps: 15 });
+  await page.mouse.move(rect.x + rect.width * 0.7, rect.y + rect.height / 2, {
+    steps: 15,
+  });
   expect(seeks).toBe(0);
   await page.mouse.move(rect.x + rect.width + 20, rect.y + 50);
   await page.mouse.up();
   await expect.poll(() => seeks).toBe(1);
+});
+
+test("Flickfolk metadata, production cache headers and primary actions are ready", async ({
+  page,
+  request,
+}) => {
+  const response = await request.get("/");
+  expect(response.headers()["cache-control"]).toContain("no-cache");
+  const html = await response.text();
+  expect(html).toContain("Flickfolk — Same movie. Same second.");
+  expect(html).not.toContain("Afterglow");
+  const asset = /src="(\/assets\/[^"]+\.js)"/.exec(html)![1]!;
+  const cached = await request.get(asset, {
+    headers: { "Accept-Encoding": "gzip" },
+  });
+  expect(cached.headers()["cache-control"]).toContain("immutable");
+  expect(cached.headers()["cache-control"]).toContain("31536000");
+  expect(cached.headers()["content-encoding"]).toBe("gzip");
+  for (const viewport of [
+    { width: 1366, height: 768 },
+    { width: 390, height: 844 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await page.goto("/");
+    await page.evaluate(() => document.fonts.ready);
+    const rect = (await page
+      .getByRole("button", { name: "Start a room" })
+      .boundingBox())!;
+    expect(rect.y + rect.height).toBeLessThan(viewport.height);
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+    await page.screenshot({
+      path: `test-results/flickfolk-home-${viewport.width}.png`,
+      fullPage: true,
+      animations: "disabled",
+    });
+  }
+});
+
+test("viewport room, grouped chat, rail toggle, keyless GIF and mobile reactions", async ({
+  page,
+}) => {
+  const isolated = await isolatedRoomServer();
+  try {
+    await page.route("**/api/gifs/status", (route) =>
+      route.fulfill({ json: { available: false } }),
+    );
+    await page.setViewportSize({ width: 1366, height: 768 });
+    await createRoom(page, false, isolated.origin);
+    await page
+      .context()
+      .grantPermissions(["clipboard-read", "clipboard-write"]);
+    const code = new URL(page.url()).pathname.split("/").pop()!;
+    await page.getByRole("button", { name: `Copy room code ${code}` }).click();
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
+      code,
+    );
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollHeight <= innerHeight,
+      ),
+    ).toBe(true);
+    await expect(
+      page.getByRole("button", { name: "Search GIFs", exact: true }),
+    ).toHaveCount(0);
+    const input = page.getByLabel("Chat message");
+    for (const text of ["First thought", "Another thought", "One more thing"]) {
+      await input.fill(text);
+      await input.press("Enter");
+      await expect(input).toHaveValue("");
+    }
+    await expect(page.getByRole("log").locator(".message")).toHaveCount(3);
+    await expect(page.getByRole("log").locator(".person-avatar")).toHaveCount(
+      1,
+    );
+    await expect(page.getByRole("log").locator(".is-grouped")).toHaveCount(2);
+    await input.fill("t");
+    await expect(
+      page.getByRole("button", { name: "Collapse sidebar" }),
+    ).toBeVisible();
+    await input.blur();
+    await page.locator("body").click({ position: { x: 5, y: 5 } });
+    await page.keyboard.press("t");
+    await expect(
+      page.getByRole("button", { name: "Expand sidebar" }),
+    ).toBeVisible();
+    await page.keyboard.press("/");
+    await expect(input).toBeFocused();
+    await page.screenshot({
+      path: "test-results/flickfolk-chat-1366.png",
+      animations: "disabled",
+    });
+    await page.getByRole("tab", { name: /People/ }).click();
+    await expect(page.getByLabel("Alex: off")).toBeVisible();
+    await page.screenshot({
+      path: "test-results/flickfolk-people-1366.png",
+      animations: "disabled",
+    });
+    await page.setViewportSize({ width: 360, height: 800 });
+    expect(
+      await page.evaluate(
+        () =>
+          document.documentElement.scrollWidth <= innerWidth &&
+          document.documentElement.scrollHeight <= innerHeight,
+      ),
+    ).toBe(true);
+    for (const button of await page.locator("button:visible").all()) {
+      const rect = (await button.boundingBox())!;
+      expect(rect.width).toBeGreaterThanOrEqual(44);
+      expect(rect.height).toBeGreaterThanOrEqual(44);
+    }
+    await page.getByRole("button", { name: "Reactions", exact: true }).click();
+    const dock = page.getByLabel("Fullscreen reactions");
+    await expect(dock.getByRole("button")).toHaveCount(6);
+    for (const button of await dock.getByRole("button").all()) {
+      const rect = (await button.boundingBox())!;
+      expect(rect.width).toBeGreaterThanOrEqual(44);
+      expect(rect.height).toBeGreaterThanOrEqual(44);
+      expect(rect.y).toBeGreaterThanOrEqual(48);
+    }
+    await dock.getByRole("button", { name: "React fire" }).click();
+    await expect(page.locator(".floating-reaction")).toHaveCount(1);
+    await page.screenshot({
+      path: "test-results/flickfolk-reaction-360.png",
+      animations: "disabled",
+    });
+  } finally {
+    await page.close();
+    await isolated.app.shutdown();
+  }
+});
+
+test("lazy mic capture is opt-in and permission denial stays a dismissible toast", async ({
+  page,
+}) => {
+  const isolated = await isolatedRoomServer();
+  try {
+    await page.context().addInitScript(() => {
+      const target = window as typeof window & { captureRequests: number };
+      target.captureRequests = 0;
+      navigator.mediaDevices.getUserMedia = async () => {
+        target.captureRequests++;
+        throw new DOMException("Permission denied", "NotAllowedError");
+      };
+    });
+    await createRoom(page, false, isolated.origin);
+    expect(
+      await page.evaluate(
+        () =>
+          (window as typeof window & { captureRequests: number })
+            .captureRequests,
+      ),
+    ).toBe(0);
+    await page
+      .getByRole("button", { name: "Enable microphone", exact: true })
+      .click();
+    await expect(page.getByRole("alert")).toContainText(
+      /microphone|permission|denied/i,
+    );
+    await expect(
+      page.getByRole("button", { name: "Fullscreen player", exact: true }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Dismiss", exact: true }).click();
+    await expect(page.getByRole("alert")).toHaveCount(0);
+  } finally {
+    await page.close();
+    await isolated.app.shutdown();
+  }
+});
+
+test("websocket-first connection falls back to polling when websocket is unavailable", async ({
+  page,
+}) => {
+  const isolated = await isolatedRoomServer();
+  try {
+    await page.addInitScript(() => {
+      const Native = window.WebSocket;
+      window.WebSocket = class extends Native {
+        constructor(url: string | URL, protocols?: string | string[]) {
+          void url;
+          super("ws://127.0.0.1:1", protocols);
+        }
+      };
+    });
+    let polling = 0;
+    page.on("request", (request) => {
+      if (request.url().includes("transport=polling")) polling++;
+    });
+    await page.goto(isolated.origin);
+    await expect(
+      page.getByRole("status").filter({ hasText: "Connected" }),
+    ).toBeVisible();
+    await page.waitForResponse(
+      (response) =>
+        response.url().includes("transport=polling") &&
+        response.status() === 200,
+    );
+    await page.getByLabel("What should we call you?").fill("Alex");
+    await page.getByRole("button", { name: "Start a room" }).click();
+    await expect(page.getByRole("heading", { name: /Room / })).toBeVisible();
+    expect(polling).toBeGreaterThan(0);
+    await page.getByLabel("Chat message").fill("Connected through polling");
+    await page.getByLabel("Chat message").press("Enter");
+    await expect(page.getByRole("log")).toContainText(
+      "Connected through polling",
+    );
+  } finally {
+    await page.close();
+    await isolated.app.shutdown();
+  }
 });

@@ -1,26 +1,3 @@
-.config/hypr/source/animations/active/active.lua
-user_scripts/tts_stt/dusky_kokoro/trigger.sh
-user_scripts/tts_stt/dusky_whisper/trigger.sh
-user_scripts/tts_stt/dusky_parakeet/trigger.sh
-user_scripts/dusky_system/click_away_to_dismiss/hyprland-focus-grab-v1-client-protocol.h
-user_scripts/dusky_system/click_away_to_dismiss/hyprland-focus-grab-v1-client-protocol.c
-user_scripts/dusky_system/click_away_to_dismiss/libwaylandgrab.so
-user_scripts/audio/dusky_audio_studio/audio-helper/dusky_audio_dsp
-user_scripts/audio/dusky_audio_studio/audio-helper/ghelper-audio
-user_scripts/theme_matugen/firefox/config.json
-.config/zellij/themes/matugen.kdl
-.config/foot/foot-colors.ini
-.config/autostart/ghelper.desktop
-*.o
-
-# Python compilation cache files
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.pytest_cache/
-
-# WatchParty
 node_modules/
 dist/
 .env
@@ -30,5 +7,5 @@ coverage/
 .watchparty-backup/
 playwright-report/
 test-results/
-
-
+*.log
+.DS_Store

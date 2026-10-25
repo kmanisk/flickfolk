@@ -12,6 +12,7 @@ COPY apps/client apps/client
 RUN npm run build && npm prune --omit=dev
 
 FROM node:24-alpine AS runtime
+LABEL org.opencontainers.image.title="Flickfolk" org.opencontainers.image.source="https://github.com/kmanisk/flickfolk"
 ENV NODE_ENV=production PORT=3001 HOST=0.0.0.0
 WORKDIR /app
 COPY --from=build --chown=node:node /app/package.json ./

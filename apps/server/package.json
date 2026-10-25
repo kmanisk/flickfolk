@@ -9,13 +9,15 @@
   },
   "dependencies": {
     "@watchparty/shared": "*",
+    "compression": "^1.8.2",
     "express": "^5.1.0",
-    "socket.io": "^4.8.0",
-    "helmet": "^8.0.0"
+    "helmet": "^8.0.0",
+    "socket.io": "^4.8.0"
   },
   "devDependencies": {
-    "tsx": "^4.20.0",
+    "@types/compression": "^1.8.1",
     "@types/express": "^5.0.0",
-    "socket.io-client": "^4.8.0"
+    "socket.io-client": "^4.8.0",
+    "tsx": "^4.20.0"
   }
 }

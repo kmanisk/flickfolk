@@ -13,7 +13,7 @@ export const REACTIONS = [
   "\u2764\uFE0F",
   "\uD83D\uDE02",
   "\uD83D\uDE2E",
-  "\uD83D\uDE2D",
+  "\uD83D\uDE22",
   "\uD83D\uDC4F",
   "\uD83D\uDD25",
 ] as const;

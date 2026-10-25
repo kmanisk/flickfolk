@@ -7,7 +7,17 @@ import { useEffect, useRef, useState } from "react";
 import { ReactionOverlay } from "./ReactionOverlay.js";
 import { useDucking } from "./useDucking.js";
 import type { VisibleReaction } from "./useReactions.js";
-import { TestCard } from "./TestCard.js";
+import {
+  Film,
+  Maximize,
+  Minimize,
+  Pause,
+  Play,
+  SmilePlus,
+  Volume2,
+  VolumeX,
+} from "lucide-react";
+import { Button, IconButton } from "./ui/index.js";
 export interface PlaybackMetrics {
   driftMs: number | null;
   state:
@@ -55,7 +65,6 @@ export function Player({
   connected,
   control,
   onMetrics,
-  channel,
   reactions,
   onReactionEnd,
   remoteSpeaking,
@@ -70,7 +79,6 @@ export function Player({
   connected: boolean;
   control: (action: Action, position: number) => void;
   onMetrics: (metrics: PlaybackMetrics) => void;
-  channel: string;
   reactions: VisibleReaction[];
   onReactionEnd: (id: string) => void;
   remoteSpeaking: boolean;
@@ -81,6 +89,26 @@ export function Player({
   effects: boolean;
 }) {
   const shell = useRef<HTMLDivElement>(null);
+  const [controlsVisible, setControlsVisible] = useState(true);
+  const [reactionOpen, setReactionOpen] = useState(false);
+  const controlsTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined,
+  );
+  const interacting = useRef(false);
+  function showControls() {
+    setControlsVisible(true);
+    if (controlsTimer.current) clearTimeout(controlsTimer.current);
+    if (latest.current.playing)
+      controlsTimer.current = setTimeout(() => {
+        if (!interacting.current) setControlsVisible(false);
+      }, 2500);
+  }
+  useEffect(() => {
+    showControls();
+    return () => {
+      if (controlsTimer.current) clearTimeout(controlsTimer.current);
+    };
+  }, [playback.playing]);
   const report = useRef(onMetrics);
   report.current = onMetrics;
   const video = useRef<HTMLVideoElement>(null);
@@ -354,18 +382,32 @@ export function Player({
     else yt.current?.unMute();
   }
   return (
-    <div className={`player-shell ${effects ? "fx-on" : "fx-off"}`} ref={shell}>
+    <div
+      className={`player-shell ${effects ? "fx-on" : "fx-off"} ${controlsVisible || !playback.playing ? "controls-visible" : ""}`}
+      ref={shell}
+      onPointerEnter={showControls}
+      onPointerMove={showControls}
+      onPointerDown={showControls}
+      onFocusCapture={() => {
+        interacting.current = true;
+        showControls();
+      }}
+      onBlurCapture={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) {
+          interacting.current = false;
+          showControls();
+        }
+      }}
+    >
       <div className="screen">
         {!media ? (
           <div className="empty-player">
-            <TestCard
-              channel={channel}
-              caption={
-                host
-                  ? "PASTE A LINK TO SET THE SCENE"
-                  : "YOUR HOST IS CHOOSING THE FEATURE"
-              }
-            />
+            <Film aria-hidden="true" />
+            <span>
+              {host
+                ? "Pick a video. Make it a night."
+                : "Your host is choosing a video."}
+            </span>
           </div>
         ) : media.kind === "video" ? (
           <video
@@ -410,27 +452,49 @@ export function Player({
           </div>
         )}
         {blocked && (
-          <button className="player-notice enable" onClick={enable}>
+          <Button className="player-notice enable" onClick={enable}>
             Click to enable playback
-          </button>
+          </Button>
         )}
       </div>
-      {isFullscreen && (
+      <div className={`stage-reaction-tools ${reactionOpen ? "is-open" : ""}`}>
+        <IconButton
+          className="mobile-reaction-toggle"
+          aria-label="Reactions"
+          aria-expanded={reactionOpen}
+          onClick={() => setReactionOpen((value) => !value)}
+        >
+          <SmilePlus aria-hidden="true" />
+        </IconButton>
         <div className="fullscreen-reactions" aria-label="Fullscreen reactions">
           {REACTIONS.map((symbol, index) => (
-            <button
+            <Button
+              variant="ghost"
               key={symbol}
               aria-label={`React ${["heart", "laugh", "surprise", "cry", "applause", "fire"][index]}`}
               disabled={!connected}
-              onClick={() => onReaction(symbol)}
+              onClick={() => {
+                onReaction(symbol);
+                setReactionOpen(false);
+              }}
             >
               {symbol}
-            </button>
+            </Button>
           ))}
         </div>
-      )}
-      <div className="player-controls">
-        <button
+      </div>
+      <div
+        className="player-controls"
+        onPointerEnter={() => {
+          interacting.current = true;
+          showControls();
+        }}
+        onPointerLeave={() => {
+          interacting.current = false;
+          showControls();
+        }}
+      >
+        <IconButton
           className="icon-button"
           aria-label={playback.playing ? "Pause" : "Play"}
           disabled={!host || !connected || !media || !ready || !!error}
@@ -438,8 +502,12 @@ export function Player({
             issue(playback.playing ? "pause" : "play", position.current)
           }
         >
-          {playback.playing ? "Ⅱ" : "▶"}
-        </button>
+          {playback.playing ? (
+            <Pause aria-hidden="true" fill="currentColor" />
+          ) : (
+            <Play aria-hidden="true" fill="currentColor" />
+          )}
+        </IconButton>
         <span className="time" ref={currentTimeLabel}>
           0:00
         </span>
@@ -486,14 +554,18 @@ export function Player({
         <span className="time" ref={durationLabel}>
           0:00
         </span>
-        <button
+        <IconButton
           className="icon-button"
           aria-label={muted ? "Unmute" : "Mute"}
           onClick={toggleMute}
           disabled={!media}
         >
-          {muted ? "◌" : "◖"}
-        </button>
+          {muted ? (
+            <VolumeX aria-hidden="true" />
+          ) : (
+            <Volume2 aria-hidden="true" />
+          )}
+        </IconButton>
         <input
           className="media-volume"
           aria-label="Movie volume"
@@ -505,15 +577,19 @@ export function Player({
           onChange={(event) => volume.choose(Number(event.target.value))}
           disabled={!media || !ready}
         />
-        <button
+        <IconButton
           className="icon-button fullscreen"
           aria-label={isFullscreen ? "Exit fullscreen" : "Fullscreen player"}
           aria-pressed={isFullscreen}
           title={isFullscreen ? "Exit fullscreen (F or Esc)" : "Fullscreen (F)"}
           onClick={fullscreen}
         >
-          {isFullscreen ? "⊡" : "⛶"}
-        </button>
+          {isFullscreen ? (
+            <Minimize aria-hidden="true" />
+          ) : (
+            <Maximize aria-hidden="true" />
+          )}
+        </IconButton>
       </div>
     </div>
   );
