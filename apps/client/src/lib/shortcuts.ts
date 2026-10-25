@@ -31,19 +31,21 @@ function dispatch(event: KeyboardEvent) {
   )
     return;
   const key = event.key.toLowerCase();
+  // Popover Escape handlers run on document capture; leave those the first turn.
+  if (key === "escape" && document.querySelector('[role="dialog"]')) return;
   if (key !== "escape" && isTextEntryTarget(event.target)) return;
   const actions = [...listeners].flatMap((map) =>
-    map[key] ? [map[key]!] : [],
+    Object.hasOwn(map, key) ? [map[key]!] : [],
   );
   if (!actions.length) return;
   event.preventDefault();
   actions.forEach((action) => action());
 }
 export function registerShortcuts(shortcuts: Shortcuts): () => void {
-  if (!listeners.size) window.addEventListener("keydown", dispatch);
+  if (!listeners.size) window.addEventListener("keydown", dispatch, true);
   listeners.add(shortcuts);
   return () => {
     listeners.delete(shortcuts);
-    if (!listeners.size) window.removeEventListener("keydown", dispatch);
+    if (!listeners.size) window.removeEventListener("keydown", dispatch, true);
   };
 }

@@ -266,8 +266,6 @@ function App() {
             connected={connected}
             status={status}
             busy={busy}
-            effects={effects}
-            setEffects={setEffects}
             lookup={lookup}
             notFound={notFound}
             goHome={leave}

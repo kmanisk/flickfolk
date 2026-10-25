@@ -53,13 +53,18 @@ Home header/hero share container alignment. Sunset CSS room preview is aria-hidd
 Home >=1024px: concise heading/form left, HTML/CSS room preview right; primary action
 visible at 1366x768. No fake people, stats, screenshots, generated artwork or queues.
 At 390x844 the primary action remains above fold; preview follows the form.
-Room <768px: topbar 48px, near-top 16:9 stage, tabs and flexible panel, composer above
+Room <768px: topbar 48px, 16:9 video/adaptive native audio embed, flexible chat above
 safe-area bottom. A single floating reaction button opens an upward dock.
 No horizontal overflow at 360px. Fullscreen targets the stage wrapper with overlays.
 
 ## Invariants
 Preserve playback engine, host authority, echo guards, Socket.IO wire events,
 reconnect identity, peer voice, compression and ducking. No camera/auth/database.
-Lazy Room, voice, GIF and YouTube API. No animation library or UI framework.
+Lazy Room, voice, GIF and provider APIs. No animation library or UI framework.
 Only text-entry contexts suppress shortcuts. Focus rings use focus-visible only.
 Verify lint/typecheck/unit/build/browser. Current pass does not deploy.
+
+Home: one GitHub icon, no Source links or Effects. Rooms remain signup-free.
+Source popover: compact detected provider icon/name, paste URL first. Live sources
+show LIVE; unavailable seek/duration/volume controls stay hidden. Limited embeds
+never claim timeline sync. Room Effects appears only after actual loaded playback.

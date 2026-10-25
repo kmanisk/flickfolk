@@ -1,3 +1,4 @@
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 import { brand } from "@watchparty/shared";
 import react from "@vitejs/plugin-react";
@@ -16,6 +17,16 @@ export default defineConfig({
       },
     },
   ],
+  build: {
+    rolldownOptions: {
+      input: {
+        main: fileURLToPath(new URL("./index.html", import.meta.url)),
+        spotify: fileURLToPath(
+          new URL("./spotify-bridge.html", import.meta.url),
+        ),
+      },
+    },
+  },
   server: {
     proxy: {
       "/socket.io": { target: "http://localhost:3001", ws: true },

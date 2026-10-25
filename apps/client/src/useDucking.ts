@@ -1,3 +1,4 @@
+import type { PlayerAdapter } from "./lib/playerAdapter.js";
 import { useEffect, useRef, useState } from "react";
 import { duckTarget, volumeRamp } from "@watchparty/shared";
 export function useDucking(
@@ -8,6 +9,7 @@ export function useDucking(
   speaking: boolean,
   enabled: boolean,
   muted: boolean,
+  external?: React.RefObject<PlayerAdapter | null>,
 ) {
   const [baseVolume, setBase] = useState(1);
   const base = useRef(1);
@@ -23,7 +25,9 @@ export function useDucking(
         video.current?.volume ??
         (typeof youtube.current?.getVolume === "function"
           ? youtube.current.getVolume() / 100
-          : base.current)
+          : external?.current?.canSetVolume
+            ? (external.current.getVolume?.() ?? base.current)
+            : base.current)
       );
     } catch {
       return base.current;
@@ -41,6 +45,14 @@ export function useDucking(
       } catch {
         /* Volume failure must not affect playback. */
       }
+    else if (external?.current?.canSetVolume) {
+      try {
+        external.current.setVolume?.(volume);
+        external.current.setMuted?.(current.current.muted);
+      } catch {
+        /* Keep media independent from voice. */
+      }
+    }
   };
   const transition = useRef(() => {});
   transition.current = () => {

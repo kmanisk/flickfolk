@@ -27,6 +27,7 @@ export class PlaybackEngine {
   private playPending = false;
   private playGeneration = 0;
   private applying = false;
+  private awaitingPosition = false;
   private ignoreUntil = -Infinity;
   private lastCorrection = -Infinity;
   private consecutiveOver = 0;
@@ -84,13 +85,45 @@ export class PlaybackEngine {
     this.adapter.setRate(rate);
   }
   private publish(
-    state: "synced" | "resyncing" | "offline" | "buffering",
+    state:
+      | "synced"
+      | "resyncing"
+      | "offline"
+      | "buffering"
+      | "live"
+      | "limited"
+      | "embed",
     driftMs: number | null = null,
     correction = false,
   ) {
+    // A provider preview can be shorter than the host's timeline. Keep the actual
+    // server offset visible even though correction targets are duration-clamped.
+    if (
+      this.adapter.syncMode === "limited" &&
+      this.playback &&
+      driftMs !== null &&
+      Number.isFinite(driftMs)
+    )
+      driftMs =
+        (currentPosition(this.playback, this.options.clock.nowServer()) -
+          this.adapter.getTime()) *
+        1000;
     this.options.store.update({
-      state,
-      driftMs,
+      state:
+        state === "synced" && this.adapter.syncMode !== "full"
+          ? this.adapter.syncMode === "limited"
+            ? "limited"
+            : this.adapter.syncMode === "live"
+              ? "live"
+              : "embed"
+          : state,
+      driftMs:
+        this.adapter.canReadPosition &&
+        this.adapter.canSeek &&
+        driftMs !== null &&
+        Number.isFinite(driftMs)
+          ? driftMs
+          : null,
       offsetMs: this.options.clock.offsetMs,
       rttMs: this.connected ? this.options.clock.rttMs : null,
       version: this.playback?.revision ?? -1,
@@ -149,7 +182,14 @@ export class PlaybackEngine {
     if (this.disposed || !this.playback || !this.connected) return;
     const target = this.target();
     const drift = target - this.adapter.getTime();
-    if (this.visible && Math.abs(drift) > 0.05) {
+    this.awaitingPosition =
+      this.adapter.canReadPosition && !Number.isFinite(drift);
+    if (
+      this.adapter.canSeek &&
+      this.adapter.canReadPosition &&
+      this.visible &&
+      Math.abs(drift) > 0.05
+    ) {
       this.program(() => this.adapter.seek(target));
       this.corrections++;
       this.lastCorrection = this.now();
@@ -166,11 +206,13 @@ export class PlaybackEngine {
     this.time();
   }
   private pause() {
+    if (!this.adapter.canPause) return;
     this.playGeneration++;
     this.playPending = false;
     this.program(() => this.adapter.pause());
   }
   private play() {
+    if (!this.adapter.canPlay) return;
     if (this.blocked || this.playPending) return;
     this.playPending = true;
     const generation = ++this.playGeneration;
@@ -221,18 +263,24 @@ export class PlaybackEngine {
       return;
     }
     if (this.adapter.isPlaying?.() === false) this.play();
+    if (!this.adapter.canReadPosition || !this.adapter.canSeek) {
+      this.publish("synced");
+      return;
+    }
     const target = this.target();
     const driftSec = this.adapter.getTime() - target;
-    const threshold =
-      this.adapter.provider === "youtube" ? 0.6 : this.nudging ? 0.05 : 0.12;
-    const over =
-      this.adapter.provider === "youtube"
-        ? Math.abs(driftSec) > threshold
-        : Math.abs(driftSec) >= threshold;
+    const threshold = !this.adapter.canSetRate
+      ? 0.6
+      : this.nudging
+        ? 0.05
+        : 0.12;
+    const over = !this.adapter.canSetRate
+      ? Math.abs(driftSec) > threshold
+      : Math.abs(driftSec) >= threshold;
     this.consecutiveOver = over ? this.consecutiveOver + 1 : 0;
     const fix = computeCorrection({
       driftSec,
-      provider: this.adapter.provider,
+      provider: this.adapter.canSetRate ? "file" : "youtube",
       nowMs: this.now(),
       lastCorrectionMs: this.lastCorrection,
       consecutiveOver: this.consecutiveOver,
@@ -256,7 +304,17 @@ export class PlaybackEngine {
     );
   }
   command(action: Action, position = this.adapter.getTime()): boolean {
-    if (!this.host || !this.connected || !this.playback || this.disposed)
+    if (
+      !this.host ||
+      !this.connected ||
+      !this.playback ||
+      this.disposed ||
+      !(action === "play"
+        ? this.adapter.canPlay
+        : action === "pause"
+          ? this.adapter.canPause
+          : this.adapter.canSeek)
+    )
       return false;
     if (action !== "seek" && this.trailing.has("seek")) {
       this.afterSeek = action;
@@ -302,6 +360,16 @@ export class PlaybackEngine {
   }
   private playerEvent(event: AdapterEvent) {
     if (this.disposed) return;
+    if (event.type === "position") {
+      if (this.awaitingPosition && Number.isFinite(this.adapter.getTime()))
+        this.resync();
+      else this.time();
+      return;
+    }
+    if (event.type === "blocked") {
+      this.autoplayBlocked();
+      return;
+    }
     if (event.type === "error") {
       this.options.onError?.(event.message);
       return;
@@ -317,11 +385,13 @@ export class PlaybackEngine {
     if (this.applying || !this.playback || !this.connected) return;
     const action = event.type === "ended" ? "pause" : event.action;
     if (this.now() < this.ignoreUntil) {
-      // A guest's native seek never gains authority, including inside the echo window.
+      // Native provider controls never gain guest authority, including inside the echo window.
       if (
         !this.host &&
-        action === "seek" &&
-        Math.abs(this.target() - this.adapter.getTime()) > 0.15
+        ((action === "seek" &&
+          Math.abs(this.target() - this.adapter.getTime()) > 0.15) ||
+          (action === "play" && !this.playback.playing) ||
+          (action === "pause" && this.playback.playing))
       ) {
         if (this.verify) clearTimeout(this.verify);
         this.verify = setTimeout(

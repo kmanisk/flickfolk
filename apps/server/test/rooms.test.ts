@@ -436,3 +436,54 @@ describe("room collaboration", () => {
     expect(await config.json()).toHaveProperty("iceServers");
   });
 });
+
+it("keeps signup-free identity and rejects capability-disabled commands before any room mutation", async () => {
+  const { host, guest, code } = await setup();
+  for (const [url, actions] of [
+    ["https://kick.com/streamer", ["play", "pause", "seek"]],
+    ["https://twitch.tv/twitchdev", ["seek"]],
+    ["https://open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqT", ["seek"]],
+  ] as const) {
+    await request((ack) => host.emit("media:set", { url }, ack));
+    const before = structuredClone(app.rooms.get(code)!);
+    for (const action of actions) {
+      const result = await request((ack) =>
+        host.emit("playback:control", { action, position: 20 }, ack),
+      );
+      expect(result.ok).toBe(false);
+      expect(app.rooms.get(code)).toEqual(before);
+      const denied = await request((ack) =>
+        guest.emit("playback:control", { action, position: 20 }, ack),
+      );
+      expect(denied).toMatchObject({
+        ok: false,
+        error: "Only the host can control playback.",
+      });
+      expect(app.rooms.get(code)).toEqual(before);
+    }
+  }
+  expect(app.rooms.get(code)!.participants.map((p) => p.name)).toEqual([
+    "Host",
+    "Guest",
+  ]);
+});
+it("live play/pause stays host-authoritative without an invented timeline", async () => {
+  const { host, guest, code } = await setup();
+  await request((ack) =>
+    host.emit("media:set", { url: "https://twitch.tv/twitchdev" }, ack),
+  );
+  expect(
+    (
+      await request((ack) =>
+        host.emit("playback:control", { action: "play", position: 0 }, ack),
+      )
+    ).ok,
+  ).toBe(true);
+  expect(
+    currentPosition(app.rooms.get(code)!.playback, Date.now() + 100000),
+  ).toBe(0);
+  const denied = await request((ack) =>
+    guest.emit("playback:control", { action: "pause", position: 0 }, ack),
+  );
+  expect(denied.ok).toBe(false);
+});

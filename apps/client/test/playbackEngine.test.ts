@@ -6,6 +6,17 @@ import { createSyncStore } from "../src/lib/syncStore.js";
 import type { AdapterEvent, PlayerAdapter } from "../src/lib/playerAdapter.js";
 class FakePlayer implements PlayerAdapter {
   provider: "file" | "youtube" = "file";
+  canPlay = true;
+  canPause = true;
+  canSeek = true;
+  canReadPosition = true;
+  canReadDuration = true;
+  canSetVolume = true;
+  isLive = false;
+  syncMode: PlayerAdapter["syncMode"] = "full";
+  get canSetRate() {
+    return this.provider === "file";
+  }
   time = 0;
   duration = 100;
   rate = 1;
@@ -296,4 +307,89 @@ it("pause commands sample the adapter at send time instead of a stale UI label",
   player.time = 10.875;
   engine.command("pause");
   expect(send).toHaveBeenCalledWith("pause", 10.875);
+});
+
+it("live sources never seek/rate-correct or publish invented drift", async () => {
+  const { engine, player, send, store } = setup();
+  Object.assign(player, {
+    canSeek: false,
+    canReadPosition: false,
+    canReadDuration: false,
+    isLive: true,
+    syncMode: "live",
+  });
+  engine.receive(state());
+  player.seek.mockClear();
+  await vi.advanceTimersByTimeAsync(10000);
+  expect(player.seek).not.toHaveBeenCalled();
+  expect(player.setRate).not.toHaveBeenCalledWith(1.05);
+  expect(engine.command("seek", 30)).toBe(false);
+  expect(send).not.toHaveBeenCalled();
+  expect(store.getSnapshot()).toMatchObject({ state: "live", driftMs: null });
+});
+it("embed-only providers reject all authoritative controls on the client too", () => {
+  const { engine, player, send } = setup();
+  Object.assign(player, {
+    canPlay: false,
+    canPause: false,
+    canSeek: false,
+    canReadPosition: false,
+    syncMode: "embed",
+  });
+  player.pause.mockClear();
+  engine.receive(state());
+  for (const action of ["play", "pause", "seek"] as const)
+    expect(engine.command(action, 20)).toBe(false);
+  expect(player.play).not.toHaveBeenCalled();
+  expect(player.pause).not.toHaveBeenCalled();
+  expect(player.seek).not.toHaveBeenCalled();
+  expect(send).not.toHaveBeenCalled();
+});
+it("limited provider alignment never reports perfect synchronization", async () => {
+  const { engine, player, store } = setup();
+  player.syncMode = "limited";
+  engine.receive(state());
+  await vi.advanceTimersByTimeAsync(300);
+  expect(store.getSnapshot().state).toBe("limited");
+});
+
+it("restores paused guest playback after native iframe play inside the echo guard", async () => {
+  const { engine, player, send } = setup(false);
+  engine.receive(state(1, false, 10));
+  player.playing = true;
+  player.emit({ type: "state", action: "play" });
+  await vi.advanceTimersByTimeAsync(600);
+  expect(player.playing).toBe(false);
+  expect(send).not.toHaveBeenCalled();
+});
+
+it("unknown provider positions publish no invented drift", () => {
+  const { engine, player, store } = setup();
+  player.time = Number.NaN;
+  player.syncMode = "limited";
+  engine.receive(state());
+  expect(store.getSnapshot().driftMs).toBeNull();
+});
+
+it("an asynchronous first position sample aligns a paused late join immediately", () => {
+  const { engine, player, send } = setup(false);
+  player.time = Number.NaN;
+  engine.receive(state(1, false, 35));
+  expect(player.seek).not.toHaveBeenCalled();
+  player.time = 0;
+  player.emit({ type: "position" });
+  expect(player.time).toBe(35);
+  expect(send).not.toHaveBeenCalled();
+});
+
+it("limited previews report the real server offset beyond their shorter duration", () => {
+  const { engine, player, store } = setup();
+  player.syncMode = "limited";
+  player.duration = 60;
+  player.time = 60;
+  engine.receive(state(1, false, 120));
+  expect(store.getSnapshot()).toMatchObject({
+    state: "limited",
+    driftMs: 60000,
+  });
 });

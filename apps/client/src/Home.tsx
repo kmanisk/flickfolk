@@ -1,18 +1,17 @@
+import { GitHubIcon } from "./ui/GitHubIcon.js";
 import {
   ArrowRight,
-  ArrowUpRight,
   Film,
   Link2,
   MessageSquare,
   Play,
   SmilePlus,
-  Sparkles,
   Users,
   Wifi,
   WifiOff,
 } from "lucide-react";
 import { brand, normalizeCode, REACTIONS } from "@watchparty/shared";
-import { Avatar, Brand, Button, Chip, IconButton } from "./ui/index.js";
+import { Avatar, Brand, Button, Chip } from "./ui/index.js";
 import type { RoomLookup } from "./useRoomLookup.js";
 interface HomeProps {
   name: string;
@@ -23,8 +22,6 @@ interface HomeProps {
   connected: boolean;
   status: string;
   busy: boolean;
-  effects: boolean;
-  setEffects: (value: boolean) => void;
   lookup: RoomLookup;
   notFound: boolean;
   joinInvalid: boolean;
@@ -39,8 +36,6 @@ export function Home({
   connected,
   status,
   busy,
-  effects,
-  setEffects,
   lookup,
   notFound,
   joinInvalid,
@@ -55,7 +50,7 @@ export function Home({
         ? "Room found"
         : "waiting";
   return (
-    <div className="home-page" data-fx={effects ? "on" : "off"}>
+    <div className="home-page">
       <header className="topbar home-topbar">
         <Brand />
         <div className="topbar-actions">
@@ -70,21 +65,15 @@ export function Home({
             )}
             {status}
           </span>
-          <IconButton
-            aria-label={effects ? "Effects on" : "Effects off"}
-            aria-pressed={effects}
-            onClick={() => setEffects(!effects)}
-          >
-            <Sparkles aria-hidden="true" />
-          </IconButton>
           <a
-            className="source-link"
-            href={brand.sourceUrl}
+            className="button button-ghost icon-button"
+            href="https://github.com/kmanisk/flickfolk"
             target="_blank"
             rel="noopener noreferrer"
+            aria-label="GitHub"
+            title="GitHub"
           >
-            Source
-            <ArrowUpRight aria-hidden="true" />
+            <GitHubIcon />
           </a>
         </div>
       </header>
@@ -274,10 +263,6 @@ export function Home({
       )}
       <footer className="home-footer">
         <span>Built with React, Socket.IO & WebRTC</span>
-        <a href={brand.sourceUrl} target="_blank" rel="noopener noreferrer">
-          Source
-          <ArrowUpRight aria-hidden="true" />
-        </a>
       </footer>
     </div>
   );

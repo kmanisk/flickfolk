@@ -1,6 +1,10 @@
 import { registerShortcuts } from "./lib/shortcuts.js";
 import { PlaybackEngine } from "./lib/playbackEngine.js";
-import { html5Adapter, youtubeAdapter } from "./lib/playerAdapter.js";
+import {
+  html5Adapter,
+  youtubeAdapter,
+  type PlayerAdapter,
+} from "./lib/playerAdapter.js";
 import { clockSync, syncStore, subscribeResync } from "./lib/syncRuntime.js";
 import { ActiveSpeakers, type Speaker } from "./ActiveSpeakers.js";
 import type { AudioLevels } from "./AudioLevels.js";
@@ -35,6 +39,8 @@ import {
   type Playback,
   type ReactionSymbol,
   REACTIONS,
+  mediaCapabilities,
+  PROVIDER_NAMES,
 } from "@watchparty/shared";
 declare global {
   interface Window {
@@ -74,6 +80,7 @@ export function Player({
   levels,
   onReaction,
   effects,
+  onStarted,
 }: {
   playback: Playback;
   host: boolean;
@@ -88,6 +95,7 @@ export function Player({
   levels: AudioLevels;
   onReaction: (symbol: ReactionSymbol) => void;
   effects: boolean;
+  onStarted: () => void;
 }) {
   const shell = useRef<HTMLDivElement>(null);
   const [controlsVisible, setControlsVisible] = useState(true);
@@ -116,6 +124,10 @@ export function Player({
   const mount = useRef<HTMLDivElement>(null);
   const yt = useRef<YT.Player | null>(null);
   const engine = useRef<PlaybackEngine | null>(null);
+  const external = useRef<PlayerAdapter | null>(null);
+  const externalMount = useRef<HTMLDivElement>(null);
+  const started = useRef(onStarted);
+  started.current = onStarted;
   const position = useRef(0);
   const duration = useRef(0);
   const seeking = useRef(false);
@@ -130,6 +142,7 @@ export function Player({
   const [blocked, setBlocked] = useState(false);
   const [muted, setMuted] = useState(false);
   const media = playback.media;
+  const caps = media ? mediaCapabilities(media) : null;
   const volume = useDucking(
     video,
     yt,
@@ -138,6 +151,7 @@ export function Player({
     remoteSpeaking,
     ducking,
     muted,
+    external,
   );
   const volumeObserver = useRef(volume.observe);
   volumeObserver.current = volume.observe;
@@ -147,6 +161,13 @@ export function Player({
     setBlocked(false);
     position.current = 0;
     duration.current = 0;
+    if (currentTimeLabel.current)
+      currentTimeLabel.current.textContent = "--:--";
+    if (durationLabel.current) durationLabel.current.textContent = "--:--";
+    if (seekInput.current) {
+      seekInput.current.value = "0";
+      seekInput.current.style.setProperty("--progress", "0%");
+    }
     if (media?.kind !== "youtube") return;
     let disposed = false;
     void loadYouTube()
@@ -166,6 +187,9 @@ export function Player({
             rel: 0,
           },
           events: {
+            onStateChange: (event) => {
+              if (event.data === 1 && !disposed) started.current();
+            },
             onReady: () => {
               if (!disposed) setReady(true);
             },
@@ -188,6 +212,39 @@ export function Player({
     };
   }, [media?.kind, media?.id]);
   useEffect(() => {
+    if (!media || ["youtube", "video", "audio"].includes(media.kind)) return;
+    const abort = new AbortController();
+    let dispose: (() => void) | undefined;
+    void import("./providers/external.js")
+      .then(({ createExternalPlayer }) => {
+        if (abort.signal.aborted || !externalMount.current) return;
+        return createExternalPlayer(media, externalMount.current, abort.signal);
+      })
+      .then((player) => {
+        if (!player) return;
+        dispose = player.dispose;
+        if (abort.signal.aborted) {
+          dispose();
+          return;
+        }
+        external.current = player.adapter;
+        setReady(true);
+      })
+      .catch((error: unknown) => {
+        if (!abort.signal.aborted)
+          setError(
+            error instanceof Error
+              ? error.message
+              : "This source could not load.",
+          );
+      });
+    return () => {
+      abort.abort();
+      dispose?.();
+      external.current = null;
+    };
+  }, [media?.kind, media?.id]);
+  useEffect(() => {
     report.current({
       driftMs: null,
       state: error
@@ -207,8 +264,14 @@ export function Player({
     volumeObserver.current();
     duration.current = Number.isFinite(length) ? length : 0;
     if (durationLabel.current)
-      durationLabel.current.textContent = timestamp(duration.current);
+      durationLabel.current.textContent =
+        duration.current > 0 ? timestamp(duration.current) : "--:--";
     if (seeking.current) return;
+    if (!Number.isFinite(time)) {
+      if (currentTimeLabel.current)
+        currentTimeLabel.current.textContent = "--:--";
+      return;
+    }
     position.current = time;
     if (currentTimeLabel.current)
       currentTimeLabel.current.textContent = timestamp(time);
@@ -231,8 +294,17 @@ export function Player({
       ? html5Adapter(video.current)
       : yt.current
         ? youtubeAdapter(yt.current)
-        : null;
+        : external.current;
     if (!adapter) return;
+    const stopStarted = adapter.on((event) => {
+      if (
+        external.current === adapter &&
+        event.type === "state" &&
+        event.action === "play" &&
+        !adapter.isBuffering()
+      )
+        started.current();
+    });
     const next = new PlaybackEngine(adapter, {
       clock: clockSync,
       store: syncStore,
@@ -254,10 +326,11 @@ export function Player({
     return () => {
       unsubscribe();
       document.removeEventListener("visibilitychange", visibility);
+      stopStarted();
       next.dispose();
       if (engine.current === next) engine.current = null;
     };
-  }, [ready, error, media?.id]);
+  }, [ready, error, media?.kind, media?.id]);
   useEffect(() => {
     engine.current?.setContext(host, connected);
   }, [host, connected]);
@@ -327,8 +400,8 @@ export function Player({
         );
         return;
       }
-      const localDuration =
-        video.current?.duration ?? yt.current?.getDuration() ?? 0;
+      if (!engine.current?.adapter.canSeek) return;
+      const localDuration = engine.current.adapter.getDuration();
       const target = Math.max(
         0,
         position.current + (action === "back" ? -10 : 10),
@@ -359,6 +432,7 @@ export function Player({
     if (video.current) video.current.muted = next;
     if (next) yt.current?.mute();
     else yt.current?.unMute();
+    external.current?.setMuted?.(next);
   }
   return (
     <div
@@ -388,22 +462,36 @@ export function Player({
                 : "Your host is choosing a video."}
             </span>
           </div>
-        ) : media.kind === "video" ? (
+        ) : media.kind === "video" || media.kind === "audio" ? (
           <video
             ref={video}
             src={media.url}
             muted={muted}
             playsInline
             preload="auto"
+            className={media.kind === "audio" ? "audio-source" : undefined}
             onLoadedMetadata={() => setReady(true)}
+            onPlaying={() => started.current()}
             onError={() =>
               setError(
                 "Video could not load. Check the URL, codec and server access.",
               )
             }
           />
-        ) : (
+        ) : media.kind === "youtube" ? (
           <div className="youtube-mount" ref={mount} />
+        ) : (
+          <div
+            className="external-mount"
+            data-provider={media.kind}
+            ref={externalMount}
+          />
+        )}
+        {media?.kind === "audio" && (
+          <div className="audio-art" aria-hidden="true">
+            <Film />
+            <span>Audio file</span>
+          </div>
         )}
         <div
           className="screen-fx"
@@ -462,8 +550,21 @@ export function Player({
           ))}
         </div>
       </div>
+      {media && (caps?.isLive || caps?.syncMode === "limited") && (
+        <div className="provider-capability" role="note">
+          {caps.isLive && <span className="live-chip">LIVE</span>}
+          <span>
+            {PROVIDER_NAMES[media.kind]}
+            {caps.syncMode === "embed"
+              ? " · local embed"
+              : caps.syncMode === "live"
+                ? " · no timeline sync"
+                : " · provider-limited playback"}
+          </span>
+        </div>
+      )}
       <div
-        className="player-controls"
+        className={`player-controls ${caps?.syncMode === "embed" ? "native-embed-controls" : ""}`}
         onPointerEnter={() => {
           interacting.current = true;
           showControls();
@@ -473,89 +574,108 @@ export function Player({
           showControls();
         }}
       >
-        <IconButton
-          className="icon-button"
-          aria-label={playback.playing ? "Pause" : "Play"}
-          disabled={!host || !connected || !media || !ready || !!error}
-          onClick={() =>
-            issue(playback.playing ? "pause" : "play", position.current)
-          }
-        >
-          {playback.playing ? (
-            <Pause aria-hidden="true" fill="currentColor" />
-          ) : (
-            <Play aria-hidden="true" fill="currentColor" />
-          )}
-        </IconButton>
-        <span className="time" ref={currentTimeLabel}>
-          0:00
-        </span>
-        <input
-          aria-label="Seek video"
-          type="range"
-          min="0"
-          ref={seekInput}
-          max="1"
-          step="0.1"
-          defaultValue="0"
-          disabled={!host || !connected || !media || !ready || !!error}
-          onPointerDown={(event) => {
-            seeking.current = true;
-            event.currentTarget.setPointerCapture(event.pointerId);
-          }}
-          onPointerUp={commitSeek}
-          onPointerCancel={() => {
-            seeking.current = false;
-            engine.current?.resync();
-          }}
-          onBlur={commitSeek}
-          onKeyUp={(event) => {
-            if (
-              [
-                "ArrowLeft",
-                "ArrowRight",
-                "Home",
-                "End",
-                "PageUp",
-                "PageDown",
-              ].includes(event.key)
-            )
-              commitSeek();
-          }}
-          onChange={(event) => {
-            seeking.current = true;
-            if (currentTimeLabel.current)
-              currentTimeLabel.current.textContent = timestamp(
-                Number(event.target.value),
-              );
-          }}
-        />
-        <span className="time" ref={durationLabel}>
-          0:00
-        </span>
-        <IconButton
-          className="icon-button"
-          aria-label={muted ? "Unmute" : "Mute"}
-          onClick={toggleMute}
-          disabled={!media}
-        >
-          {muted ? (
-            <VolumeX aria-hidden="true" />
-          ) : (
-            <Volume2 aria-hidden="true" />
-          )}
-        </IconButton>
-        <input
-          className="media-volume"
-          aria-label="Movie volume"
-          type="range"
-          min="0"
-          max="1"
-          step="0.01"
-          value={volume.baseVolume}
-          onChange={(event) => volume.choose(Number(event.target.value))}
-          disabled={!media || !ready}
-        />
+        {(!caps || caps.canPlay || caps.canPause) && (
+          <IconButton
+            className="icon-button"
+            aria-label={playback.playing ? "Pause" : "Play"}
+            disabled={
+              !host ||
+              !connected ||
+              !media ||
+              !ready ||
+              !!error ||
+              (playback.playing ? !caps?.canPause : !caps?.canPlay)
+            }
+            onClick={() =>
+              issue(playback.playing ? "pause" : "play", position.current)
+            }
+          >
+            {playback.playing ? (
+              <Pause aria-hidden="true" fill="currentColor" />
+            ) : (
+              <Play aria-hidden="true" fill="currentColor" />
+            )}
+          </IconButton>
+        )}
+        {(!caps || caps.canReadPosition) && (
+          <span className="time" ref={currentTimeLabel}>
+            0:00
+          </span>
+        )}
+        {(!caps || caps.canSeek) && (
+          <input
+            aria-label="Seek video"
+            type="range"
+            min="0"
+            ref={seekInput}
+            max="1"
+            step="0.1"
+            defaultValue="0"
+            disabled={!host || !connected || !media || !ready || !!error}
+            onPointerDown={(event) => {
+              seeking.current = true;
+              event.currentTarget.setPointerCapture(event.pointerId);
+            }}
+            onPointerUp={commitSeek}
+            onPointerCancel={() => {
+              seeking.current = false;
+              engine.current?.resync();
+            }}
+            onBlur={commitSeek}
+            onKeyUp={(event) => {
+              if (
+                [
+                  "ArrowLeft",
+                  "ArrowRight",
+                  "Home",
+                  "End",
+                  "PageUp",
+                  "PageDown",
+                ].includes(event.key)
+              )
+                commitSeek();
+            }}
+            onChange={(event) => {
+              seeking.current = true;
+              if (currentTimeLabel.current)
+                currentTimeLabel.current.textContent = timestamp(
+                  Number(event.target.value),
+                );
+            }}
+          />
+        )}
+        {(!caps || caps.canReadDuration) && (
+          <span className="time" ref={durationLabel}>
+            --:--
+          </span>
+        )}
+        {(!caps || caps.canSetVolume) && (
+          <>
+            <IconButton
+              className="icon-button"
+              aria-label={muted ? "Unmute" : "Mute"}
+              onClick={toggleMute}
+              disabled={!media || !ready}
+            >
+              {muted ? (
+                <VolumeX aria-hidden="true" />
+              ) : (
+                <Volume2 aria-hidden="true" />
+              )}
+            </IconButton>
+            <input
+              className="media-volume"
+              aria-label="Movie volume"
+              type="range"
+              min="0"
+              max="1"
+              step="0.01"
+              value={volume.baseVolume}
+              onChange={(event) => volume.choose(Number(event.target.value))}
+              disabled={!media || !ready}
+            />
+          </>
+        )}
         <IconButton
           className="icon-button fullscreen"
           aria-label={isFullscreen ? "Exit fullscreen" : "Fullscreen player"}
