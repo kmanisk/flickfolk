@@ -13,6 +13,7 @@ import { ReactionOverlay } from "./ReactionOverlay.js";
 import { useDucking } from "./useDucking.js";
 import type { VisibleReaction } from "./useReactions.js";
 import {
+  Captions,
   Film,
   Maximize,
   Minimize,
@@ -182,6 +183,9 @@ export function Player({
           playerVars: {
             controls: 0,
             disablekb: 1,
+            fs: 0,
+            iv_load_policy: 3,
+            cc_load_policy: 1,
             playsinline: 1,
             origin: location.origin,
             rel: 0,
@@ -436,7 +440,7 @@ export function Player({
   }
   return (
     <div
-      className={`player-shell ${effects ? "fx-on" : "fx-off"} ${controlsVisible || !playback.playing ? "controls-visible" : ""}`}
+      className={`player-shell ${effects ? "fx-on" : "fx-off"} ${media?.kind === "youtube" ? "youtube-player" : ""} ${controlsVisible || !playback.playing ? "controls-visible" : ""}`}
       ref={shell}
       onPointerEnter={showControls}
       onPointerMove={showControls}
@@ -507,9 +511,6 @@ export function Player({
         )}
         <ActiveSpeakers people={speakers} levels={levels} />
         <ReactionOverlay items={reactions} onDone={onReactionEnd} />
-        {media?.kind === "youtube" && (
-          <div className="youtube-shield" aria-hidden="true" />
-        )}
         {media && !ready && !error && (
           <div className="player-notice">Loading your video…</div>
         )}
@@ -604,6 +605,7 @@ export function Player({
         )}
         {(!caps || caps.canSeek) && (
           <input
+            className="media-seek"
             aria-label="Seek video"
             type="range"
             min="0"
@@ -675,6 +677,15 @@ export function Player({
               disabled={!media || !ready}
             />
           </>
+        )}
+        {media?.kind === "youtube" && (
+          <span
+            className="youtube-caption-status"
+            title="YouTube captions are on when available"
+          >
+            <Captions aria-hidden="true" />
+            <span className="sr-only">Captions on when available</span>
+          </span>
         )}
         <IconButton
           className="icon-button fullscreen"
