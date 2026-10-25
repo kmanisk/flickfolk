@@ -106,3 +106,22 @@ Keep the existing reaction protocol; update the six-symbol whitelist and DOM cap
 30, with optimistic deduplication and ephemeral events. No history insertion.
 Create public kmanisk/flickfolk, checkpoint pre-warm-dusk, feature branch, merge and
 push main/tags after verification. Do not deploy. Missing locked image is documented.
+
+## Final polish
+
+Verify, merge and push feat/ui-polish-3. The latest user instruction cancels Render
+deployment; no deployment or new cloud services are part of this pass. Keep the
+existing production configuration and single-instance in-memory room architecture.
+Preserve the engine, host authority, protocols and WebRTC. Centralize shortcut
+filtering: only actual text entry suppresses shortcuts, never buttons or ranges.
+Use keyboard-only focus-visible rings; preserve native Enter and range arrows.
+Bottom source chip is the only source editor, via host-only URL popover. Remove
+stage heading and duplicate topbar connection. Add inviting empty chat/quick sends,
+raised reaction dock, restrained volume, aligned Home header and sunset CSS preview.
+Validate on desktop/mobile and run the existing tests plus shortcut/focus coverage
+before completion. Preserve the existing deployment files without invoking Render.
+
+Future persistence may use Supabase Auth (Google/GitHub) and Postgres for profiles,
+room history, preferences and recent links. This is not implemented in this pass.
+Keep voice peer-to-peer and sync/chat/reactions on the same Node/Socket.IO server;
+no Redis or separate backend. A non-Render deployment target remains unspecified.

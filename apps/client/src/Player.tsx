@@ -1,3 +1,4 @@
+import { registerShortcuts } from "./lib/shortcuts.js";
 import { PlaybackEngine } from "./lib/playbackEngine.js";
 import { html5Adapter, youtubeAdapter } from "./lib/playerAdapter.js";
 import { clockSync, syncStore, subscribeResync } from "./lib/syncRuntime.js";
@@ -213,6 +214,10 @@ export function Player({
       currentTimeLabel.current.textContent = timestamp(time);
     if (seekInput.current) {
       seekInput.current.max = String(duration.current || Math.max(time, 1));
+      seekInput.current.style.setProperty(
+        "--progress",
+        `${duration.current ? Math.min((time / duration.current) * 100, 100) : 0}%`,
+      );
       seekInput.current.value = String(
         Math.min(time, duration.current || Math.max(time, 1)),
       );
@@ -306,70 +311,44 @@ export function Player({
     });
   }
   useEffect(() => {
-    const key = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && document.fullscreenElement) {
-        event.preventDefault();
-        void document.exitFullscreen().catch(() => {});
-        return;
-      }
-      if (
-        event.repeat ||
-        event.ctrlKey ||
-        event.altKey ||
-        event.metaKey ||
-        (event.target instanceof Element &&
-          event.target.closest(
-            'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"]',
-          ))
-      )
-        return;
-      if (
-        event.key === " " &&
-        event.target instanceof Element &&
-        event.target.closest("button, a")
-      )
-        return;
+    const playbackCommand = (action: "toggle" | "back" | "forward") => {
       const value = commands.current;
       if (
-        (event.key === " " || event.key.toLowerCase() === "k") &&
-        value.host &&
-        value.connected &&
-        value.ready &&
-        value.playback.media
-      ) {
-        event.preventDefault();
+        !value.host ||
+        !value.connected ||
+        !value.ready ||
+        !value.playback.media
+      )
+        return;
+      if (action === "toggle") {
         value.control(
           value.playback.playing ? "pause" : "play",
           position.current,
         );
+        return;
       }
-      if (
-        ["j", "l"].includes(event.key.toLowerCase()) &&
-        value.host &&
-        value.connected &&
-        value.ready &&
-        value.playback.media
-      ) {
-        event.preventDefault();
-        const localDuration =
-          video.current?.duration ?? yt.current?.getDuration() ?? 0;
-        const target = Math.max(
-          0,
-          position.current + (event.key.toLowerCase() === "j" ? -10 : 10),
-        );
-        const next =
-          localDuration > 0 ? Math.min(target, localDuration) : target;
-        position.current = next;
-        commands.current.position = next;
-        value.control("seek", next);
-      }
-      if (event.key.toLowerCase() === "f") {
-        event.preventDefault();
-        fullscreen();
-      }
+      const localDuration =
+        video.current?.duration ?? yt.current?.getDuration() ?? 0;
+      const target = Math.max(
+        0,
+        position.current + (action === "back" ? -10 : 10),
+      );
+      const next = localDuration > 0 ? Math.min(target, localDuration) : target;
+      position.current = next;
+      commands.current.position = next;
+      value.control("seek", next);
     };
-    window.addEventListener("keydown", key);
-    return () => window.removeEventListener("keydown", key);
+    return registerShortcuts({
+      " ": () => playbackCommand("toggle"),
+      k: () => playbackCommand("toggle"),
+      j: () => playbackCommand("back"),
+      l: () => playbackCommand("forward"),
+      f: fullscreen,
+      escape: () => {
+        if (document.fullscreenElement)
+          void document.exitFullscreen().catch(() => {});
+      },
+    });
   }, []);
   function enable() {
     engine.current?.gesture();
@@ -405,7 +384,7 @@ export function Player({
             <Film aria-hidden="true" />
             <span>
               {host
-                ? "Pick a video. Make it a night."
+                ? "Choose a video from the source control below."
                 : "Your host is choosing a video."}
             </span>
           </div>

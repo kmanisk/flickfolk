@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from "react";
+import { useSyncExternalStore, type ReactNode, type RefObject } from "react";
 import { Link2, Wifi, WifiOff } from "lucide-react";
 import { REACTIONS, type ReactionSymbol, type Room } from "@watchparty/shared";
 import type { PlaybackMetrics } from "./Player.js";
@@ -12,6 +12,9 @@ export function SyncStatusline({
   phase,
   debug,
   onSource,
+  sourceOpen,
+  sourceTriggerRef,
+  sourceEditor,
   onReaction,
 }: {
   room: Room | null;
@@ -20,6 +23,9 @@ export function SyncStatusline({
   phase: PlaybackMetrics["state"];
   debug: boolean;
   onSource?: () => void;
+  sourceOpen?: boolean;
+  sourceTriggerRef?: RefObject<HTMLButtonElement | null>;
+  sourceEditor?: ReactNode;
   onReaction?: (symbol: ReactionSymbol) => void;
 }) {
   const metrics = useSyncExternalStore(
@@ -45,16 +51,34 @@ export function SyncStatusline({
       className={`bottom-bar sync-statusline ${debug ? "debug-status" : ""}`}
       aria-label="Playback diagnostics"
     >
-      <Button variant="ghost" className="source-chip" onClick={onSource}>
-        <Link2 aria-hidden="true" />
-        <span>{source}</span>
-      </Button>
+      <div className="source-anchor">
+        {onSource ? (
+          <Button
+            variant="ghost"
+            className="source-chip"
+            ref={sourceTriggerRef}
+            aria-label="Change video source"
+            aria-expanded={sourceOpen}
+            onClick={onSource}
+          >
+            <Link2 aria-hidden="true" />
+            <span>{source}</span>
+          </Button>
+        ) : (
+          <span className="source-chip read-only-source">
+            <Link2 aria-hidden="true" />
+            <span>{source}</span>
+          </span>
+        )}
+        {sourceEditor}
+      </div>
       <div className="reaction-dock" aria-label="Watch reactions">
         {REACTIONS.map((symbol, i) => (
           <Button
             variant="ghost"
             key={symbol}
             aria-label={`React ${labels[i]}`}
+            title={`React ${labels[i]}`}
             disabled={!connected}
             onClick={() => onReaction?.(symbol)}
           >
@@ -62,7 +86,11 @@ export function SyncStatusline({
           </Button>
         ))}
       </div>
-      <Chip className={`connection-chip sync-${state}`}>
+      <Chip
+        role="status"
+        aria-label="Connection"
+        className={`connection-chip sync-${state}`}
+      >
         <span className="sync-dot" />
         {state === "offline" ? (
           <WifiOff aria-hidden="true" />

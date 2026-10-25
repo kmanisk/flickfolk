@@ -51,6 +51,7 @@ function App() {
   const [status, setStatus] = useState("Connecting");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [joinInvalid, setJoinInvalid] = useState(false);
   const connected = status === "Connected";
   const debug = new URLSearchParams(location.search).get("debug") === "1";
   function accept(next: Room) {
@@ -136,8 +137,10 @@ function App() {
     let clean: string;
     try {
       clean = cleanName(name);
-      if (!create && !CODE.test(normalizeCode(joinCode)))
-        throw new Error("Enter a 6-character room code or invite URL.");
+      if (!create && !CODE.test(normalizeCode(joinCode))) {
+        setJoinInvalid(true);
+        return;
+      }
     } catch (e) {
       setError((e as Error).message);
       return;
@@ -151,7 +154,9 @@ function App() {
         return;
       }
       if (!result.ok) {
-        setError(result.error);
+        if (!create && result.error.startsWith("Room not found"))
+          setJoinInvalid(true);
+        else setError(result.error);
         return;
       }
       try {
@@ -252,7 +257,11 @@ function App() {
             name={name}
             setName={setName}
             code={joinCode}
-            setCode={setJoinCode}
+            setCode={(value) => {
+              setJoinCode(value);
+              setJoinInvalid(false);
+            }}
+            joinInvalid={joinInvalid}
             enter={enter}
             connected={connected}
             status={status}

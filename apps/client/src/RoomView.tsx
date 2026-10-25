@@ -1,8 +1,8 @@
+import { registerShortcuts } from "./lib/shortcuts.js";
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import {
   Check,
   Copy,
-  Film,
   Keyboard,
   Link2,
   LogOut,
@@ -15,9 +15,6 @@ import {
   Share2,
   Sparkles,
   Users,
-  Wifi,
-  WifiOff,
-  X,
 } from "lucide-react";
 import {
   VOICE_OFF,
@@ -76,7 +73,7 @@ export default function RoomView({
   const [unread, setUnread] = useState(0);
   const [collapsed, setCollapsed] = useState(false);
   const [popup, setPopup] = useState<"settings" | "keys" | null>(null);
-  const [sourceOpen, setSourceOpen] = useState(!room.playback.media);
+  const [sourceOpen, setSourceOpen] = useState(false);
   const [url, setUrl] = useState(room.playback.media?.url ?? "");
   const [copied, setCopied] = useState<"code" | "invite" | null>(null);
   const [toast, setToast] = useState("");
@@ -101,6 +98,7 @@ export default function RoomView({
   const chatInput = useRef<HTMLTextAreaElement>(null);
   const settingsButton = useRef<HTMLButtonElement>(null);
   const keysButton = useRef<HTMLButtonElement>(null);
+  const sourceButton = useRef<HTMLButtonElement>(null);
   const copyTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
     undefined,
   );
@@ -159,49 +157,24 @@ export default function RoomView({
     effects,
   });
   actions.current = { copy, mic, setTab, setCollapsed, setEffects, effects };
-  useEffect(() => {
-    const key = (event: KeyboardEvent) => {
-      if (
-        event.repeat ||
-        event.ctrlKey ||
-        event.metaKey ||
-        event.altKey ||
-        (event.target instanceof Element &&
-          event.target.closest(
-            'input, textarea, select, [contenteditable]:not([contenteditable="false"])',
-          ))
-      )
-        return;
-      const current = actions.current;
-      if (event.key.toLowerCase() === "f") setPopup(null);
-      switch (event.key.toLowerCase()) {
-        case "x":
-          event.preventDefault();
-          current.setEffects((value) => !value);
-          break;
-        case "m":
-          event.preventDefault();
-          current.mic();
-          break;
-        case "c":
-          event.preventDefault();
-          void current.copy();
-          break;
-        case "t":
-          event.preventDefault();
-          current.setCollapsed((value) => !value);
-          break;
-        case "/":
-          event.preventDefault();
-          current.setCollapsed(false);
-          current.setTab("chat");
+  useEffect(
+    () =>
+      registerShortcuts({
+        f: () => setPopup(null),
+        x: () => actions.current.setEffects((value) => !value),
+        m: () => actions.current.mic(),
+        c: () => {
+          void actions.current.copy();
+        },
+        t: () => actions.current.setCollapsed((value) => !value),
+        "/": () => {
+          actions.current.setCollapsed(false);
+          actions.current.setTab("chat");
           setTimeout(() => chatInput.current?.focus(), 0);
-          break;
-      }
-    };
-    window.addEventListener("keydown", key);
-    return () => window.removeEventListener("keydown", key);
-  }, []);
+        },
+      }),
+    [],
+  );
   function openSource() {
     setUrl(room.playback.media?.url ?? "");
     setSourceOpen((value) => (room.playback.media ? !value : true));
@@ -278,17 +251,6 @@ export default function RoomView({
           )}
         </Button>
         <AvatarStack people={speakers} />
-        <span
-          className={`connection ${connected ? "online" : ""}`}
-          role="status"
-        >
-          {connected ? (
-            <Wifi aria-hidden="true" />
-          ) : (
-            <WifiOff aria-hidden="true" />
-          )}
-          <span>{status}</span>
-        </span>
         <div className="topbar-actions">
           <Button
             className="invite-button"
@@ -358,7 +320,7 @@ export default function RoomView({
                 <h3>Room settings</h3>
                 <Button
                   variant="ghost"
-                  aria-label={effects ? "[fx]" : "[fx off]"}
+                  aria-label={effects ? "Effects on" : "Effects off"}
                   aria-pressed={effects}
                   onClick={() => setEffects((value) => !value)}
                 >
@@ -415,21 +377,6 @@ export default function RoomView({
       <main className="room-main">
         <section className="watch-column" aria-label={`Room ${room.code}`}>
           <h1 className="sr-only">Room {room.code}</h1>
-          <div className="stage-heading">
-            <span>
-              <Film aria-hidden="true" />
-              {room.playback.media ? "Now watching" : "Your shared screen"}
-            </span>
-            <Button
-              variant="ghost"
-              className="source-toggle"
-              aria-expanded={sourceOpen}
-              onClick={openSource}
-            >
-              <Link2 aria-hidden="true" />
-              {room.playback.media ? "Edit source" : "Choose a video"}
-            </Button>
-          </div>
           <div className="stage-wrap">
             <Player
               playback={room.playback}
@@ -446,44 +393,6 @@ export default function RoomView({
               onReaction={reactionState.send}
               effects={effects}
             />
-            {sourceOpen && (
-              <div
-                className={`source-editor ${room.playback.media ? "source-editor-loaded" : ""}`}
-              >
-                <div className="source-editor-heading">
-                  <h2>
-                    {host ? "What are we watching?" : "Waiting for your host"}
-                  </h2>
-                  {room.playback.media && (
-                    <IconButton
-                      aria-label="Close source editor"
-                      onClick={() => setSourceOpen(false)}
-                    >
-                      <X aria-hidden="true" />
-                    </IconButton>
-                  )}
-                </div>
-                {host ? (
-                  <>
-                    {sourceForm}
-                    <Button
-                      variant="ghost"
-                      className="demo-button"
-                      onClick={() =>
-                        load("https://media.w3.org/2010/05/bunny/trailer.mp4")
-                      }
-                    >
-                      Try a sample film
-                    </Button>
-                  </>
-                ) : (
-                  <p>
-                    {room.playback.media?.url ??
-                      "Your host will pick a video. You bring the company."}
-                  </p>
-                )}
-              </div>
-            )}
           </div>
           <span className="sr-only">
             {host
@@ -585,6 +494,7 @@ export default function RoomView({
               onUnread={setUnread}
               visible={tab === "chat" && !collapsed}
               selfId={socket.id}
+              onCopyInvite={() => void copy()}
             />
           </div>
         </aside>
@@ -595,7 +505,30 @@ export default function RoomView({
         status={status}
         phase={metrics.state}
         debug={new URLSearchParams(location.search).get("debug") === "1"}
-        onSource={openSource}
+        onSource={host ? openSource : undefined}
+        sourceOpen={sourceOpen && host}
+        sourceTriggerRef={sourceButton}
+        sourceEditor={
+          sourceOpen && host ? (
+            <Popover
+              label="Video source"
+              className="source-popover"
+              triggerRef={sourceButton}
+              onClose={() => setSourceOpen(false)}
+            >
+              <h2>What are we watching?</h2>
+              {sourceForm}
+              <Button
+                variant="ghost"
+                onClick={() =>
+                  load("https://media.w3.org/2010/05/bunny/trailer.mp4")
+                }
+              >
+                Try a sample film
+              </Button>
+            </Popover>
+          ) : null
+        }
         onReaction={reactionState.send}
       />
       {voice?.needsAudio && (

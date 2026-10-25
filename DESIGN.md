@@ -26,17 +26,19 @@ voice activity. Keep active-speaker overlays inside the fullscreen stage.
 
 ## Desktop room
 At >=1024px, a 100dvh grid: topbar 56px, main minmax(0,1fr), bottom bar 56px.
-No page scroll. Main stage flexes beside a 360px Chat/People rail; collapsed rail 56px.
+No page scroll. Rail width clamp(320px,20vw,380px); collapsed rail 56px.
 Topbar: Flickfolk, room/copy, avatar stack, Invite, shortcuts, settings, mic, leave.
 No duplicate title row or participant strip. Leave is ghost, danger only on hover.
-Stage contains object-fit-contain video, a static 8% coral radial glow, source editor
-and overlay controls. Controls hide after 2.5s only while playing and idle.
+Stage uses panel background, centered contain video, static 8% coral glow and
+overlay controls. No heading row. Controls hide after 2.5s while playing and idle.
+Only the bottom source chip opens the host URL popover; guest source is read-only.
+Only the bottom connection chip indicates sync. Volume is secondary to the scrubber.
 Bottom bar: source domain/editor, six-reaction dock, real sync/drift/RTT chip.
 Detailed version/correction telemetry appears only with ?debug=1.
 
 ## Conversation and motion
 Group consecutive same-author messages within five minutes, cap rendered history at
-200. No repeated identity on grouped lines; timestamps on hover. Emoji-only <=3
+200. Empty chat has icon, greeting, invite and ordinary quick sends. Emoji-only <=3
 messages are large and bubble-free. Reactions never become chat messages.
 Compact one-row composer grows to four lines, Enter sends, Shift+Enter newline,
 plain-text paste only, 500 characters. Follow only within 80px of the bottom.
@@ -47,6 +49,7 @@ Reduced motion uses a short fade; FX off removes decorative glow/motion.
 Native transform/opacity transitions only; rail width may transition 220ms.
 
 ## Home and mobile
+Home header/hero share container alignment. Sunset CSS room preview is aria-hidden.
 Home >=1024px: concise heading/form left, HTML/CSS room preview right; primary action
 visible at 1366x768. No fake people, stats, screenshots, generated artwork or queues.
 At 390x844 the primary action remains above fold; preview follows the form.
@@ -58,4 +61,5 @@ No horizontal overflow at 360px. Fullscreen targets the stage wrapper with overl
 Preserve playback engine, host authority, echo guards, Socket.IO wire events,
 reconnect identity, peer voice, compression and ducking. No camera/auth/database.
 Lazy Room, voice, GIF and YouTube API. No animation library or UI framework.
-No deployment. Verify lint/typecheck/unit/build/browser and actual responsive renders.
+Only text-entry contexts suppress shortcuts. Focus rings use focus-visible only.
+Verify lint/typecheck/unit/build/browser. Current pass does not deploy.
