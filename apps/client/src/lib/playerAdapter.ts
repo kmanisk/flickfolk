@@ -1,11 +1,19 @@
-import type { Action } from "@watchparty/shared";
+import {
+  mediaCapabilities,
+  type PlayerCapabilities,
+  type Action,
+} from "@watchparty/shared";
 export type AdapterEvent =
   | { type: "state"; action: Action }
   | { type: "buffering" }
+  | { type: "position" }
   | { type: "ended" }
-  | { type: "error"; message: string };
-export interface PlayerAdapter {
-  provider: "file" | "youtube";
+  | { type: "error"; message: string }
+  | { type: "blocked" };
+export interface PlayerAdapter extends PlayerCapabilities {
+  getVolume?(): number;
+  setVolume?(volume: number): void;
+  setMuted?(muted: boolean): void;
   play(): void | Promise<void>;
   pause(): void;
   seek(position: number): void;
@@ -18,7 +26,7 @@ export interface PlayerAdapter {
 }
 export function html5Adapter(video: HTMLVideoElement): PlayerAdapter {
   return {
-    provider: "file",
+    ...mediaCapabilities({ kind: "video", url: video.src, id: video.src }),
     play: () => video.play(),
     pause: () => video.pause(),
     seek: (time) => {
@@ -59,7 +67,7 @@ export function html5Adapter(video: HTMLVideoElement): PlayerAdapter {
 // YouTube has discrete rates: correction never requests fractional nudges.
 export function youtubeAdapter(player: YT.Player): PlayerAdapter {
   return {
-    provider: "youtube",
+    ...mediaCapabilities({ kind: "youtube", url: "", id: "" }),
     play: () => player.playVideo(),
     pause: () => player.pauseVideo(),
     seek: (time) => player.seekTo(time, true),

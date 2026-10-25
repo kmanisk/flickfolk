@@ -22,6 +22,8 @@ import {
   currentPosition,
   normalizeCode,
   parseMedia,
+  supportsAction,
+  mediaCapabilities,
   validPosition,
   type Ack,
   type ClientEvents,
@@ -60,8 +62,17 @@ export function createApp() {
             "'self'",
             "https://www.youtube.com",
             "https://s.ytimg.com",
+            "https://player.twitch.tv",
+            "https://w.soundcloud.com",
           ],
-          frameSrc: ["https://www.youtube.com"],
+          frameSrc: [
+            "'self'",
+            "https://www.youtube.com",
+            "https://player.twitch.tv",
+            "https://w.soundcloud.com",
+            "https://open.spotify.com",
+            "https://player.kick.com",
+          ],
           mediaSrc: [
             "'self'",
             "https:",
@@ -297,11 +308,16 @@ export function createApp() {
           !validPosition(payload.position)
         )
           throw new Error("Invalid playback command.");
+        if (!supportsAction(room.playback.media, payload.action))
+          throw new Error(
+            "This source does not support that playback control.",
+          );
         const now = Date.now();
         room.playback = {
           ...room.playback,
-          position:
-            payload.action === "play"
+          position: !mediaCapabilities(room.playback.media).canReadPosition
+            ? 0
+            : payload.action === "play"
               ? currentPosition(room.playback, now)
               : payload.position,
           playing:
@@ -410,6 +426,34 @@ export function createApp() {
     socket.on("disconnect", leave);
   });
   const client = fileURLToPath(new URL("../../client/dist/", import.meta.url));
+  // The official Spotify bootstrap needs eval; confine that exception to this frame.
+  app.get(
+    "/spotify-bridge.html",
+    helmet({
+      contentSecurityPolicy: {
+        useDefaults: false,
+        directives: {
+          defaultSrc: ["'none'"],
+          scriptSrc: [
+            "'self'",
+            "'unsafe-eval'",
+            "https://open.spotify.com",
+            "https://embed-cdn.spotifycdn.com",
+          ],
+          frameSrc: ["https://open.spotify.com"],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          connectSrc: ["https://open.spotify.com"],
+          frameAncestors: ["'self'"],
+          baseUri: ["'none'"],
+          objectSrc: ["'none'"],
+        },
+      },
+    }),
+    (_req, res) =>
+      res
+        .set("Cache-Control", "no-cache")
+        .sendFile("spotify-bridge.html", { root: client }),
+  );
   app.use(
     "/assets",
     express.static(`${client}/assets`, { immutable: true, maxAge: "1y" }),

@@ -90,3 +90,13 @@ it("shares one dispatcher, cancels Space defaults and cleans up subscribers", ()
   stop();
   expect(press(" ")).toBe(false);
 });
+
+it("registers in capture phase so focused controls cannot swallow shortcuts", () => {
+  const add = vi.spyOn(window, "addEventListener"),
+    remove = vi.spyOn(window, "removeEventListener");
+  const stop = registerShortcuts({ k: vi.fn() });
+  disposers.push(stop);
+  expect(add).toHaveBeenCalledWith("keydown", expect.any(Function), true);
+  stop();
+  expect(remove).toHaveBeenCalledWith("keydown", expect.any(Function), true);
+});

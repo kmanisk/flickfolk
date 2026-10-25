@@ -1,9 +1,19 @@
+import { mediaCapabilities } from "./media.js";
+export * from "./media.js";
 import type { VoiceState, VoiceSignal, Reaction } from "./collaboration.js";
 export * from "./collaboration.js";
 export * from "./audio.js";
 export * from "./reactions.js";
 export interface Media {
-  kind: "youtube" | "video";
+  kind:
+    | "youtube"
+    | "video"
+    | "audio"
+    | "twitch"
+    | "soundcloud"
+    | "spotify"
+    | "kick";
+  live?: boolean;
   url: string;
   id: string;
 }
@@ -106,51 +116,9 @@ export function cleanChat(value: unknown): string {
     throw new Error("Messages must be 1–500 printable characters.");
   return value.trim();
 }
-export function parseMedia(value: unknown): Media {
-  if (typeof value !== "string" || value.length > 2048)
-    throw new Error("Enter a YouTube or .mp4/.webm URL.");
-  let url: URL;
-  try {
-    url = new URL(value.trim());
-  } catch {
-    throw new Error("Enter a valid video URL.");
-  }
-  if (
-    !["http:", "https:"].includes(url.protocol) ||
-    url.username ||
-    url.password
-  )
-    throw new Error("Use an HTTP or HTTPS video URL without credentials.");
-  const host = url.hostname.toLowerCase();
-  if (
-    [
-      "youtube.com",
-      "www.youtube.com",
-      "m.youtube.com",
-      "youtu.be",
-      "www.youtu.be",
-    ].includes(host)
-  ) {
-    const id = host.endsWith("youtu.be")
-      ? url.pathname.slice(1)
-      : url.pathname === "/watch"
-        ? url.searchParams.get("v")
-        : /^\/(embed|shorts)\//.test(url.pathname)
-          ? url.pathname.split("/")[2]
-          : null;
-    if (!id || !/^[\w-]{11}$/.test(id))
-      throw new Error("Use a valid YouTube video link.");
-    return {
-      kind: "youtube",
-      id,
-      url: `https://www.youtube.com/watch?v=${id}`,
-    };
-  }
-  if (!/\.(mp4|webm)$/i.test(url.pathname))
-    throw new Error("Direct videos must use .mp4 or .webm URLs.");
-  return { kind: "video", id: url.href, url: url.href };
-}
 export function currentPosition(playback: Playback, now: number): number {
+  if (playback.media && !mediaCapabilities(playback.media).canReadPosition)
+    return 0;
   return Math.max(
     0,
     playback.position +

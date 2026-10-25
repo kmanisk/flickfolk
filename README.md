@@ -2,7 +2,7 @@
 
 **Same movie. Same second.**
 
-A shared watch room with synchronized YouTube/direct video playback, peer-to-peer
+A signup-free shared watch room with synchronized media playback, peer-to-peer
 voice, live reactions and collaborative chat. The Warm Dusk interface uses local
 Figtree/JetBrains Mono fonts, coral controls and deterministic initials avatars.
 No accounts, camera, database or paid service are required for the core app.
@@ -43,7 +43,8 @@ in-memory rooms and no persistence: restarting loses rooms, messages and invites
 ## What works
 
 - Create/join by six-character code or invite URL, with debounced room lookup.
-- Host-authoritative play, pause and seek for YouTube and direct `.mp4`/`.webm` URLs.
+- Host-authoritative timeline controls for YouTube, direct video/audio, Twitch VOD and SoundCloud.
+- Capability-aware Twitch live, Spotify and Kick embeds without invented timeline sync.
 - Late joins, reconnect identity where Socket.IO recovery is available, host promotion.
 - Audio-only WebRTC voice with actual RMS speaking rings and a fullscreen speaker overlay.
 - Six ephemeral reactions; optimistic floats reconcile server echoes and cap at 30 nodes.
@@ -95,6 +96,41 @@ Only playback is versioned: stale playback is dropped without discarding chat/pr
 Telemetry is an external store publishing at most 4Hz; playback labels use DOM refs.
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for the engine boundaries.
+
+## Media providers
+
+Paste a URL; the source popover detects its provider. There is no media proxy or download service.
+
+| Source | Room controls and limits |
+| --- | --- |
+| Direct `.mp4`/`.webm` | Existing HTML5 full timeline sync; codec/server access must work in the browser. |
+| Direct `.mp3`/`.ogg`/`.m4a` | Same HTML5 adapter and full timeline sync where the browser supports the codec. |
+| YouTube | Existing IFrame API implementation and full timeline sync. |
+| Twitch VOD | Official Player API, play/pause/seek and measured timeline alignment. |
+| Twitch live | Play/pause only, LIVE state, no seeking/duration/drift claims. |
+| SoundCloud track/playlist | Official Widget with attribution; playlists use measured per-track durations as a combined timeline. Incomplete/restricted timelines may be unavailable. |
+| Spotify | Official iframe API only. Music/collections have play/pause, no invented seek/volume/timeline. Podcast episodes expose seek/position/duration. Always marked limited. |
+| Kick | Official livestream iframe; native local controls only, LIVE/embed state, no synchronized playback or volume claim. |
+
+Capabilities are shared with the server, which rejects disabled operations before any room mutation.
+New iframe sources use conservative seek correction rather than unsupported rate nudges.
+No account is needed for Flickfolk. Providers may impose their own login, rights, ads,
+regional or autoplay restrictions. Blocked controllable playback offers a gesture gate;
+provider failure leaves Flickfolk chat/voice intact. Twitch derives `parent` from the
+current hostname and officially requires a 400×300 player; use fullscreen on small screens.
+Cross-origin iframe focus belongs to that provider; Flickfolk shortcuts operate in
+Flickfolk's document, including its focused player controls.
+Mobile audio embeds reserve enough height for native controls and attribution; chat
+keeps its own scroll area and pinned composer. Only selected provider APIs load.
+Home loads no provider SDKs.
+Spotify runs in a small same-origin bridge frame because its current SDK requires
+dynamic evaluation. Only that frame route permits eval; Flickfolk's main CSP does not.
+A validated MessageChannel carries controller actions/state; no user HTML is inserted.
+
+References: [Twitch Player](https://dev.twitch.tv/docs/embed/video-and-clips/),
+[SoundCloud Widget](https://developers.soundcloud.com/docs/api/html5-widget),
+[Spotify iframe](https://developer.spotify.com/documentation/embeds/references/iframe-api),
+[Kick iframe](https://help.kick.com/en/articles/8010826-how-to-embed-your-kick-livestream).
 
 ## Voice and privacy
 
@@ -149,10 +185,10 @@ validated HTTPS hosts/file shapes only and renders no user HTML.
 | C | Copy invite |
 | T | Toggle sidebar |
 
-Shortcuts ignore inputs, textareas and contenteditable. Enter sends; Shift+Enter
+Shortcuts run at window capture and ignore only text entry (not ranges/buttons/tabs/links). Enter sends; Shift+Enter
 inserts a newline. Composer content is limited to 500 characters. Playback shortcuts
 use the same host/echo-guard path as the player controls. Settings contains ducking
-and effects; detailed engine version/corrections are opt-in with `?debug=1`.
+and effects after the current source has actually played; detailed engine version/corrections are opt-in with `?debug=1`.
 
 ## Verification
 
@@ -168,7 +204,8 @@ Vitest covers permissions, validation, clock/correction policy, echo guards, thr
 voice signaling/presence, reactions and normalized GIF API responses. Playwright uses
 real Socket.IO clients and media playback; synthetic audio passes through actual
 WebRTC to verify RMS, normalization-path setup, ducking, mute/zero and cleanup.
-Synthetic tests do not certify physical microphones or relay infrastructure.
+Provider browser tests mock official SDK boundaries while using the real room/socket/engine path.
+Synthetic tests do not certify live provider availability, accounts, physical microphones or relay infrastructure.
 GitHub Actions runs checks and a Docker build. Nothing is deployed automatically.
 
 ## Deployment and scaling

@@ -320,6 +320,20 @@ test("tabs, keyboard, copy feedback, reduced motion and no-signal page", async (
         .locator(".screen-fx")
         .evaluate((element) => getComputedStyle(element).display),
     ).toBe("none");
+    await serveClip(context);
+    await (await sourceField(page)).fill("https://media.example/clip.webm");
+    await page.getByRole("button", { name: "Load video" }).click();
+    await expect(
+      page.getByRole("button", { name: "Play", exact: true }),
+    ).toBeEnabled();
+    await page.getByRole("button", { name: "Play", exact: true }).click();
+    await expect
+      .poll(() =>
+        page
+          .locator("video")
+          .evaluate((v) => (v as HTMLVideoElement).currentTime),
+      )
+      .toBeGreaterThan(0.05);
     await page.getByRole("button", { name: "Audio settings" }).click();
     await page.getByRole("button", { name: "Effects on", exact: true }).click();
     await expect(
@@ -1056,6 +1070,20 @@ test("optimistic reactions reconcile, cap nodes and reduce motion", async ({
     await expect(page.locator(".floating-reaction")).toHaveCount(0, {
       timeout: 3000,
     });
+    await serveClip(page.context());
+    await (await sourceField(page)).fill("https://media.example/clip.webm");
+    await page.getByRole("button", { name: "Load video" }).click();
+    await expect(
+      page.getByRole("button", { name: "Play", exact: true }),
+    ).toBeEnabled();
+    await page.getByRole("button", { name: "Play", exact: true }).click();
+    await expect
+      .poll(() =>
+        page
+          .locator("video")
+          .evaluate((v) => (v as HTMLVideoElement).currentTime),
+      )
+      .toBeGreaterThan(0.05);
     await page.getByRole("button", { name: "Audio settings" }).click();
     await page.getByRole("button", { name: "Effects on", exact: true }).click();
     await page.getByRole("button", { name: "React heart" }).click();
@@ -1573,6 +1601,9 @@ test("focused controls retain global shortcuts while text entry and native keybo
     await expect.poll(() => commands.at(-1)?.action).toBe("play");
     const playerButton = page.locator(".player-controls button").first();
     await expect(playerButton).toBeFocused();
+    await playerButton.evaluate((el) =>
+      el.addEventListener("keydown", (event) => event.stopPropagation()),
+    );
     expect(
       await playerButton.evaluate((el) => el.matches(":focus-visible")),
     ).toBe(false);
@@ -1601,6 +1632,9 @@ test("focused controls retain global shortcuts while text entry and native keybo
     await page.locator(".player-shell").hover();
     await slider.click();
     await expect(slider).toBeFocused();
+    await slider.evaluate((el) =>
+      el.addEventListener("keydown", (event) => event.stopPropagation()),
+    );
     await page.keyboard.press("f");
     await expect
       .poll(() =>

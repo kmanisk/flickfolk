@@ -81,6 +81,20 @@ Tests mock upstream API behavior; no live key/account has been supplied in this 
 `gif_provider_error` logs status and a bounded credential-redacted body; restrict
 log access. The server does not fetch arbitrary user image links.
 
+## Provider configuration and checks
+
+No media-provider API key is required. Twitch uses the current browser hostname for
+its `parent`; serve through the intended public hostname and HTTPS. The CSP allows
+only required official SDK/frame hosts. Spotify's same-origin bridge has a separate
+policy for its SDK/CDN and required eval; the main document never enables eval. Serve
+`spotify-bridge.html` through Express so its scoped headers apply. Do not replace
+these policies with wildcard script sources. Check real public sources after choosing
+a deployment target; ads, region, browser policy and provider account restrictions
+are outside Flickfolk's control. Test Twitch VOD/live separately, SoundCloud playlist
+late joins, Spotify episodes versus limited music, Kick's local-only embed and audio
+codec support. SDK mocks certify adapter behavior, not live provider availability.
+Flickfolk itself stays signup-free: no Supabase keys, OAuth or database setup.
+
 ## Post-deploy verification
 
 - `/healthz` returns 200 and the deployment reaches its healthy state.

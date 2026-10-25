@@ -125,3 +125,20 @@ Future persistence may use Supabase Auth (Google/GitHub) and Postgres for profil
 room history, preferences and recent links. This is not implemented in this pass.
 Keep voice peer-to-peer and sync/chat/reactions on the same Node/Socket.IO server;
 no Redis or separate backend. A non-Render deployment target remains unspecified.
+
+## Signup-free media providers
+
+Latest scope explicitly excludes authentication, Supabase and persistence. Keep
+local identity and the name/create/join flow. Home has one GitHub icon link, factual
+stack footer and no Effects control. Room effects are available only after actual
+media readiness and playback have both occurred. Central shortcuts use capture,
+suppress only text entry and preserve host authority, Enter and native range arrows.
+Add typed capabilities around the existing PlayerAdapter/engine. Preserve HTML5 and
+YouTube; accept direct browser-supported audio. Official Twitch API supports VOD
+timeline controls and live play/pause without timeline sync; derive parent host.
+SoundCloud Widget supports tracks/playlists with provider attribution. Spotify uses
+only its iframe API with honest capability/autoplay/account limitations. Kick uses
+its official live iframe and exposes no invented controls or timeline metrics.
+Validate canonical provider URLs and reject unsupported operations on client/server
+before room state changes. Lazy-load provider scripts, keep chat/voice independent,
+and add URL/capability/guest/shortcut/provider tests plus all existing checks.

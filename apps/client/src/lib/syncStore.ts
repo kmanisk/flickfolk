@@ -1,5 +1,12 @@
 export interface SyncSnapshot {
-  state: "synced" | "resyncing" | "offline" | "buffering";
+  state:
+    | "synced"
+    | "resyncing"
+    | "offline"
+    | "buffering"
+    | "live"
+    | "limited"
+    | "embed";
   driftMs: number | null;
   rttMs: number | null;
   offsetMs: number;

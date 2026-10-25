@@ -10,7 +10,7 @@
 - Verify lint, typecheck, tests and production build before completion.
 - Keep changes minimal, accessible, responsive and free of emojis.
 
-- The active polish pass permits commits/pushes to kmanisk/flickfolk. Render deployment is explicitly cancelled. Do not deploy or create services in this pass; future authentication/persistence is not current implementation scope.
+- The current iteration adds media adapters and Home/shortcut cleanup. Preserve signup-free local identity: no auth, Supabase, profiles or database. No deployment or cloud service creation.
 - Runtime diagnostics must be measured; unavailable values display `--`.
 
 10. A prompt may amend SPEC.md or DESIGN.md. When it does, update those files first, then implement.

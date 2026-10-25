@@ -38,6 +38,7 @@ import {
   Tabs,
   Toast,
 } from "./ui/index.js";
+import { ProviderBadge } from "./ProviderBadge.js";
 import { Player, type PlaybackMetrics } from "./Player.js";
 import { SyncStatusline } from "./SyncStatusline.js";
 import { ParticipantRow } from "./ParticipantRow.js";
@@ -75,6 +76,11 @@ export default function RoomView({
   const [popup, setPopup] = useState<"settings" | "keys" | null>(null);
   const [sourceOpen, setSourceOpen] = useState(false);
   const [url, setUrl] = useState(room.playback.media?.url ?? "");
+  const [startedMedia, setStartedMedia] = useState<string | null>(null);
+  const mediaKey = room.playback.media
+    ? `${room.playback.media.kind}:${room.playback.media.id}`
+    : null;
+  const canEffects = Boolean(mediaKey && startedMedia === mediaKey);
   const [copied, setCopied] = useState<"code" | "invite" | null>(null);
   const [toast, setToast] = useState("");
   const [voiceStarted, setVoiceStarted] = useState(false);
@@ -155,13 +161,25 @@ export default function RoomView({
     setCollapsed,
     setEffects,
     effects,
+    canEffects,
   });
-  actions.current = { copy, mic, setTab, setCollapsed, setEffects, effects };
+  actions.current = {
+    copy,
+    mic,
+    setTab,
+    setCollapsed,
+    setEffects,
+    effects,
+    canEffects,
+  };
   useEffect(
     () =>
       registerShortcuts({
         f: () => setPopup(null),
-        x: () => actions.current.setEffects((value) => !value),
+        x: () => {
+          if (actions.current.canEffects)
+            actions.current.setEffects((value) => !value);
+        },
         m: () => actions.current.mic(),
         c: () => {
           void actions.current.copy();
@@ -199,7 +217,7 @@ export default function RoomView({
       <input
         id="media-url"
         aria-label="Video URL"
-        placeholder="Paste a YouTube or video link"
+        placeholder="Paste a video, music or stream link"
         value={url}
         maxLength={2048}
         onChange={(event) => setUrl(event.target.value)}
@@ -318,15 +336,17 @@ export default function RoomView({
                 triggerRef={settingsButton}
               >
                 <h3>Room settings</h3>
-                <Button
-                  variant="ghost"
-                  aria-label={effects ? "Effects on" : "Effects off"}
-                  aria-pressed={effects}
-                  onClick={() => setEffects((value) => !value)}
-                >
-                  <Sparkles aria-hidden="true" />
-                  Effects {effects ? "on" : "off"}
-                </Button>
+                {canEffects && (
+                  <Button
+                    variant="ghost"
+                    aria-label={effects ? "Effects on" : "Effects off"}
+                    aria-pressed={effects}
+                    onClick={() => setEffects((value) => !value)}
+                  >
+                    <Sparkles aria-hidden="true" />
+                    Effects {effects ? "on" : "off"}
+                  </Button>
+                )}
                 <Button
                   variant="ghost"
                   aria-pressed={ducking}
@@ -392,6 +412,12 @@ export default function RoomView({
               levels={levels}
               onReaction={reactionState.send}
               effects={effects}
+              onStarted={() => {
+                if (room.playback.media)
+                  setStartedMedia(
+                    `${room.playback.media.kind}:${room.playback.media.id}`,
+                  );
+              }}
             />
           </div>
           <span className="sr-only">
@@ -517,6 +543,7 @@ export default function RoomView({
               onClose={() => setSourceOpen(false)}
             >
               <h2>What are we watching?</h2>
+              <ProviderBadge url={url} />
               {sourceForm}
               <Button
                 variant="ghost"
