@@ -131,7 +131,7 @@ textarea::placeholder {
   color: var(--accent-text);
 }
 .button-primary:hover:not(:disabled) {
-  background: #ff9176;
+  background: color-mix(in srgb, var(--accent) 84%, white);
 }
 .button-secondary {
   border-color: var(--line);
@@ -211,22 +211,105 @@ textarea::placeholder {
 .brand-mark {
   display: grid;
   place-items: center;
-  width: 28px;
+  width: 30px;
   height: 28px;
-  background: var(--accent);
-  color: var(--accent-text);
-  border-radius: 9px;
+  color: var(--text);
 }
-.brand-mark svg {
-  width: 16px;
-  height: 16px;
-  margin-left: 1px;
+.brand-mark-icon {
+  width: 28px;
+  height: 21px;
+  display: block;
+}
+.brand:hover .brand-mark,
+.brand:focus-visible .brand-mark {
+  color: var(--accent);
 }
 .topbar-actions {
   display: flex;
   align-items: center;
   gap: 6px;
   margin-left: auto;
+}
+
+.accent-picker-anchor {
+  display: inline-flex;
+}
+.accent-picker-button {
+  position: relative;
+}
+.accent-preview-dot {
+  position: absolute;
+  right: 7px;
+  bottom: 7px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 2px var(--bg);
+}
+.accent-picker-popover {
+  width: 264px;
+}
+.accent-control {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 2px 0;
+}
+.accent-control-header,
+.accent-custom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.accent-value {
+  font: 11px var(--mono);
+  color: var(--muted);
+}
+.accent-swatches {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 8px;
+}
+.accent-swatch {
+  appearance: none;
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--text) 18%, transparent);
+  border-radius: 9px;
+  background: var(--swatch);
+}
+.accent-swatch:hover {
+  transform: translateY(-1px);
+}
+.accent-swatch[aria-checked="true"] {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+}
+.accent-custom input[type="color"] {
+  width: 34px;
+  height: 28px;
+  min-height: 28px;
+  padding: 2px;
+  border-radius: 8px;
+  background: var(--panel);
+  cursor: pointer;
+}
+.accent-custom input[type="color"]::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+.accent-custom input[type="color"]::-webkit-color-swatch {
+  border: 0;
+  border-radius: 5px;
+}
+.accent-custom input[type="color"]::-moz-color-swatch {
+  border: 0;
+  border-radius: 5px;
 }
 .connection {
   display: flex;
@@ -303,7 +386,7 @@ textarea::placeholder {
 .room-code-compact:hover,
 .room-code-compact:focus-visible {
   color: var(--accent);
-  background: #ff7a590a;
+  background: color-mix(in srgb, var(--accent) 4%, transparent);
 }
 .room-code-compact:hover svg,
 .room-code-compact:focus-visible svg {
@@ -643,7 +726,7 @@ kbd {
   content: "";
   position: absolute;
   inset: 10%;
-  background: radial-gradient(ellipse, #ff7a5914, transparent 70%);
+  background: radial-gradient(ellipse, color-mix(in srgb, var(--accent) 8%, transparent), transparent 70%);
   z-index: -1;
 }
 .preview-caption {
@@ -675,6 +758,7 @@ kbd {
   display: flex;
   align-items: center;
   gap: 8px;
+  color: var(--text);
   font-weight: 700;
 }
 .preview-brand svg {
@@ -1326,7 +1410,7 @@ kbd {
   overflow-wrap: anywhere;
 }
 .message.is-self p {
-  background: #ff7a591c;
+  background: color-mix(in srgb, var(--accent) 11%, transparent);
 }
 .message.is-grouped {
   padding-left: 42px;
@@ -1750,7 +1834,7 @@ kbd {
   min-width: 40px;
 }
 .reaction-dock .button:hover {
-  background: #ff7a5912;
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
   transform: scale(1.12);
 }
 .connection-chip {
@@ -2442,7 +2526,7 @@ kbd {
   position: absolute;
   inset: -20px;
   pointer-events: none;
-  background: radial-gradient(ellipse at center, #ff7a5914, transparent 72%);
+  background: radial-gradient(ellipse at center, color-mix(in srgb, var(--accent) 8%, transparent), transparent 72%);
 }
 .player-shell {
   z-index: 1;
@@ -2694,7 +2778,7 @@ kbd {
   position: absolute;
   inset: -14px;
   pointer-events: none;
-  background: radial-gradient(ellipse, #ff7a5914, transparent 72%);
+  background: radial-gradient(ellipse, color-mix(in srgb, var(--accent) 8%, transparent), transparent 72%);
 }
 [data-fx="off"] .stage-wrap::before {
   display: none;
@@ -3049,4 +3133,9 @@ a:active {
     right: 12px;
     bottom: auto;
   }
+}
+
+.preview-brand-mark {
+  width: 18px;
+  height: 14px;
 }
