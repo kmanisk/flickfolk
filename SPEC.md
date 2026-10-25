@@ -68,3 +68,27 @@ Instrument Serif display, IBM Plex Sans Variable UI, JetBrains Mono metadata.
 GIPHY routes validate optional limits, report bounded redacted upstream failures,
 handle empty/malformed/throttled/auth responses and keep an honest no-key state.
 No deployment, paid service, account, auth, database or animation framework is added.
+
+
+## Prompt A: playback engine
+
+Preserve the existing `clock`, `playback:control` and `room:state` wire protocol.
+Use five clock samples 200ms apart at connect, then three every 30s; lowest RTT,
+EMA alpha .3 on refresh, reject samples above twice the best known RTT.
+Keep pure clock/correction policy in shared and framework-independent adapters and
+engine in client/lib. Playing correction runs at 1Hz while visible, skipping
+buffer/seeking. File rate nudges are .95/1.05, large drift seeks above 2s;
+YouTube seeks only above .6s and at most every 4s. Require two bad measurements.
+An active file nudge continues until drift falls below .05s (normal deadband .12s).
+Startup/late join, resume and reconnect align once directly to the current timeline.
+
+Only playback has a protocol revision. Drop stale/duplicate playback revisions
+inside the engine, while still accepting same-revision participants/chat snapshots;
+dropping whole room snapshots would discard working chat/presence without a protocol
+change. Protect programmatic adapter events for 600ms; rate changes never emit.
+Throttle host commands per action to 150ms, clamp to duration and submit scrubs once
+on release. Autoplay denial waits for an explicit gesture instead of retrying.
+Expose measured telemetry through an external store, publishing at most 4Hz.
+Tests cover clock selection/outliers, policy/hysteresis, stale playback, echo guards,
+throttle/clamping, autoplay and simulated convergence plus existing browser sync.
+This pass stops after Prompt A. Prompt B and C require separate sessions.

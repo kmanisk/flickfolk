@@ -1112,3 +1112,24 @@ test("obsolete GIF searches cannot replace the latest results", async ({ page })
   await expect(page.getByRole("button", { name: "Send latest" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Send old", exact: true })).toHaveCount(0);
 });
+
+test("a pointer scrub emits only once on release, including release outside the rail", async ({ page }) => {
+  await serveClip(page.context());
+  let seeks = 0;
+  page.on("websocket", (connection) => connection.on("framesent", (frame) => {
+    if (String(frame.payload).includes('"action":"seek"')) seeks++;
+  }));
+  await createRoom(page);
+  await page.getByLabel("Video URL").fill("https://media.example/clip.webm");
+  await page.getByRole("button", { name: "Load video" }).click();
+  await expect(page.getByRole("button", { name: "Play", exact: true })).toBeEnabled();
+  const slider = page.getByLabel("Seek video");
+  const rect = (await slider.boundingBox())!;
+  await page.mouse.move(rect.x + 5, rect.y + rect.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(rect.x + rect.width * .7, rect.y + rect.height / 2, { steps: 15 });
+  expect(seeks).toBe(0);
+  await page.mouse.move(rect.x + rect.width + 20, rect.y + 50);
+  await page.mouse.up();
+  await expect.poll(() => seeks).toBe(1);
+});

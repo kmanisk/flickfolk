@@ -180,3 +180,4 @@ export function validPosition(value: unknown): value is number {
 }
 
 export * from "./presentation.js";
+export * from "./sync.js";

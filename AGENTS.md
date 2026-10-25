@@ -10,5 +10,7 @@
 - Verify lint, typecheck, tests and production build before completion.
 - Keep changes minimal, accessible, responsive and free of emojis.
 
-- Deployment preparation only: do not deploy, push, or create cloud resources.
+- Follow the active prompt scope: Prompt A permits local Git work and pushing to a user-supplied remote; deployment belongs to later separately requested passes.
 - Runtime diagnostics must be measured; unavailable values display `--`.
+
+10. A prompt may amend SPEC.md or DESIGN.md. When it does, update those files first, then implement.
