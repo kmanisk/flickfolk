@@ -28,6 +28,7 @@ import type { Socket } from "socket.io-client";
 import type { VoiceApi } from "./VoiceBridge.js";
 import { AudioLevels } from "./AudioLevels.js";
 import {
+  AccentPicker,
   Brand,
   Button,
   Chip,
@@ -337,6 +338,7 @@ export default function RoomView({
                 triggerRef={settingsButton}
               >
                 <h3>Room settings</h3>
+                <AccentPicker inline />
                 {canEffects && (
                   <Button
                     variant="ghost"

@@ -2,14 +2,21 @@ import {
   forwardRef,
   useEffect,
   useRef,
+  useState,
   type ButtonHTMLAttributes,
   type HTMLAttributes,
   type ReactNode,
   type RefObject,
 } from "react";
-import { Play } from "lucide-react";
+import { Palette } from "lucide-react";
 import { avatarIdentity, brand } from "@watchparty/shared";
 import type { AudioLevels } from "../AudioLevels.js";
+import {
+  ACCENT_PRESETS,
+  ACCENT_STORAGE_KEY,
+  currentAccent,
+  saveAccent,
+} from "../accent.js";
 export const Button = forwardRef<
   HTMLButtonElement,
   ButtonHTMLAttributes<HTMLButtonElement> & {
@@ -70,6 +77,21 @@ export function Tooltip({
     </span>
   );
 }
+export function BrandMark({ className = "" }: { className?: string }) {
+  return (
+    <svg
+      className={`brand-mark-icon ${className}`}
+      viewBox="0 0 24 18"
+      shapeRendering="crispEdges"
+      aria-hidden="true"
+    >
+      <path
+        fill="currentColor"
+        d="M1 2h9v3H4v3h5v3H4v5H1V2Zm12 0h9v3h-6v3h5v3h-5v5h-3V2Z"
+      />
+    </svg>
+  );
+}
 export function Brand({ onClick }: { onClick?: () => void }) {
   return (
     <a
@@ -86,10 +108,89 @@ export function Brand({ onClick }: { onClick?: () => void }) {
       }
     >
       <span className="brand-mark">
-        <Play fill="currentColor" aria-hidden="true" />
+        <BrandMark />
       </span>
       {brand.productName}
     </a>
+  );
+}
+
+function AccentOptions({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  return (
+    <div className="accent-control">
+      <div className="accent-control-header">
+        <span>Accent color</span>
+        <span className="accent-value">{value.toUpperCase()}</span>
+      </div>
+      <div className="accent-swatches" role="radiogroup" aria-label="Accent color presets">
+        {ACCENT_PRESETS.map((option) => (
+          <button
+            type="button"
+            key={option.value}
+            className="accent-swatch"
+            role="radio"
+            aria-checked={value === option.value}
+            aria-label={option.name}
+            title={option.name}
+            style={{ "--swatch": option.value } as React.CSSProperties}
+            onClick={() => onChange(option.value)}
+          />
+        ))}
+      </div>
+      <label className="accent-custom">
+        <span>Custom</span>
+        <input
+          type="color"
+          aria-label="Custom accent color"
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+        />
+      </label>
+    </div>
+  );
+}
+
+export function AccentPicker({ inline = false }: { inline?: boolean }) {
+  const [open, setOpen] = useState(false);
+  const [accent, setAccentState] = useState(currentAccent);
+  const trigger = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    const sync = () => setAccentState(currentAccent());
+    const storage = (event: StorageEvent) => {
+      if (event.key === ACCENT_STORAGE_KEY) sync();
+    };
+    window.addEventListener("flickfolk:accent", sync);
+    window.addEventListener("storage", storage);
+    return () => {
+      window.removeEventListener("flickfolk:accent", sync);
+      window.removeEventListener("storage", storage);
+    };
+  }, []);
+  const choose = (value: string) => setAccentState(saveAccent(value));
+  if (inline) return <AccentOptions value={accent} onChange={choose} />;
+  return (
+    <div className="popover-anchor accent-picker-anchor">
+      <IconButton
+        ref={trigger}
+        className="accent-picker-button"
+        aria-label="Accent color"
+        aria-expanded={open}
+        onClick={() => setOpen((value) => !value)}
+      >
+        <Palette aria-hidden="true" />
+        <span className="accent-preview-dot" aria-hidden="true" />
+      </IconButton>
+      {open && (
+        <Popover
+          className="accent-picker-popover"
+          label="Accent color"
+          onClose={() => setOpen(false)}
+          triggerRef={trigger}
+        >
+          <AccentOptions value={accent} onChange={choose} />
+        </Popover>
+      )}
+    </div>
   );
 }
 export function Avatar({

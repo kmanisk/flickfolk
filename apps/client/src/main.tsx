@@ -18,7 +18,9 @@ import { startClock } from "./lib/syncRuntime.js";
 import { Home } from "./Home.js";
 import { Toast } from "./ui/index.js";
 import { useRoomLookup } from "./useRoomLookup.js";
+import { loadAccent } from "./accent.js";
 import "./style.css";
+loadAccent();
 const RoomView = lazy(() => import("./RoomView.js"));
 const socket: Socket<ServerEvents, ClientEvents> = io({
   autoConnect: false,

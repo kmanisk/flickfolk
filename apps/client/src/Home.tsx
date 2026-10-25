@@ -11,7 +11,7 @@ import {
   WifiOff,
 } from "lucide-react";
 import { brand, normalizeCode, REACTIONS } from "@watchparty/shared";
-import { Avatar, Brand, Button, Chip } from "./ui/index.js";
+import { AccentPicker, Avatar, Brand, BrandMark, Button, Chip } from "./ui/index.js";
 import type { RoomLookup } from "./useRoomLookup.js";
 interface HomeProps {
   name: string;
@@ -65,6 +65,7 @@ export function Home({
             )}
             {status}
           </span>
+          <AccentPicker />
           <a
             className="button button-ghost icon-button"
             href="https://github.com/kmanisk/flickfolk"
@@ -186,7 +187,7 @@ export function Home({
             <div className="preview-shell">
               <div className="preview-topbar">
                 <span className="preview-brand">
-                  <Play fill="currentColor" />
+                  <BrandMark className="preview-brand-mark" />
                   {brand.productName}
                 </span>
                 <Chip className="room-code">
