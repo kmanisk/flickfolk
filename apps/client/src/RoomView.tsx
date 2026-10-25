@@ -325,7 +325,7 @@ export default function RoomView({
           <div className="popover-anchor desktop-action">
             <IconButton
               ref={settingsButton}
-              aria-label="Room settings"
+              aria-label="Audio settings"
               aria-expanded={popup === "settings"}
               onClick={() => setPopup(popup === "settings" ? null : "settings")}
             >
