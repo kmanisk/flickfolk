@@ -33,7 +33,7 @@ export function useRoomLookup(value: string): RoomLookup {
               state: "missing",
               detail:
                 response.status === 404
-                  ? "That channel is off-air."
+                  ? "Room not found. Check the code."
                   : response.status === 429
                     ? "Too many lookups. Wait a moment."
                     : "Lookup unavailable.",
@@ -60,7 +60,7 @@ export function useRoomLookup(value: string): RoomLookup {
           if (!cancelled)
             setLookup({
               state: "missing",
-              detail: "Cannot reach the station. Check your connection.",
+              detail: "Cannot check this room. Check your connection.",
             });
         });
     }, 300);

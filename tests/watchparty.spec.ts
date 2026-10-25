@@ -52,6 +52,12 @@ async function createRoom(page: Page, debug = false, origin = "/") {
   await expect(page.getByRole("heading", { name: /Room / })).toBeVisible();
   await expect(page).toHaveURL(/\/room\/[A-HJ-NP-Z2-9]{6}(?:\?debug=1)?$/);
 }
+async function sourceField(page: Page) {
+  const field = page.getByRole("textbox", { name: "Video URL" });
+  if (!(await field.isVisible()))
+    await page.getByRole("button", { name: "Change video source" }).click();
+  return field;
+}
 test("desktop and mobile home remain accessible and fit the viewport", async ({
   page,
 }) => {
@@ -105,9 +111,7 @@ test("two browsers synchronize real video, chat, reconnect and host promotion", 
     await host.getByRole("tab", { name: /People/ }).click();
     await expect(host.getByText("Sam", { exact: true })).toBeVisible();
     await host.getByRole("tab", { name: /Chat/ }).click();
-    await host
-      .getByRole("textbox", { name: "Video URL" })
-      .fill("https://media.example/clip.webm");
+    await (await sourceField(host)).fill("https://media.example/clip.webm");
     await host.getByRole("button", { name: "Load video" }).click();
     await expect(
       host.getByRole("button", { name: "Play", exact: true }),
@@ -220,9 +224,11 @@ test("two browsers synchronize real video, chat, reconnect and host promotion", 
       host.getByRole("log").getByText("This is our movie night."),
     ).toBeVisible();
     await second.setOffline(true);
-    await expect(guest.getByRole("status")).toContainText("Reconnecting");
+    await expect(guest.getByRole("status")).toContainText(/reconnecting/i);
     await second.setOffline(false);
-    await expect(guest.getByRole("status")).toHaveText("Connected");
+    await expect(guest.getByRole("status")).not.toContainText(
+      /reconnecting|offline|rejoining/i,
+    );
     await expect(
       guest.getByRole("log").getByText("This is our movie night."),
     ).toBeVisible();
@@ -270,16 +276,14 @@ test("room lookup maps waiting, tuning, found and no signal and aborts stale req
   const lookup = page.getByTestId("room-lookup");
   await expect(lookup).toHaveText("waiting");
   await page.getByLabel("Room code or invite link").fill("ABC234");
-  await expect(lookup).toHaveText("tuning…");
+  await expect(lookup).toHaveText("Checking…");
   await page.getByLabel("Room code or invite link").fill("DEF567");
-  await expect(lookup).toContainText("room found / 3");
+  await expect(lookup).toContainText("Room found");
   release?.();
-  await expect(lookup).toContainText("room found / 3");
-  await expect(
-    page.getByRole("region", { name: "Room preview" }),
-  ).toContainText("DEF567");
+  await expect(lookup).toContainText("Room found");
+  await expect(page.locator(".home-preview")).toContainText("DEF567");
   await page.getByLabel("Room code or invite link").fill("ZZZZZZ");
-  await expect(lookup).toHaveText("no signal");
+  await expect(lookup).toHaveText("Room not found. Check the code.");
   await page.getByLabel("Room code or invite link").fill("");
   await expect(lookup).toHaveText("waiting");
   await expect(page.getByTestId("drift")).toHaveCount(0);
@@ -317,15 +321,15 @@ test("tabs, keyboard, copy feedback, reduced motion and no-signal page", async (
         .evaluate((element) => getComputedStyle(element).display),
     ).toBe("none");
     await page.getByRole("button", { name: "Audio settings" }).click();
-    await page.getByRole("button", { name: "[fx]", exact: true }).click();
+    await page.getByRole("button", { name: "Effects on", exact: true }).click();
     await expect(
-      page.getByRole("button", { name: "[fx off]", exact: true }),
+      page.getByRole("button", { name: "Effects off", exact: true }),
     ).toHaveAttribute("aria-pressed", "false");
     expect(consoleErrors).toEqual([]);
     const response = await page.goto("/lost-channel");
     expect(response?.status()).toBe(404);
     await expect(
-      page.getByRole("heading", { name: "No signal." }),
+      page.getByRole("heading", { name: "Room not found." }),
     ).toBeVisible();
   } finally {
     await context.close();
@@ -339,9 +343,9 @@ test("unavailable direct media shows an error and no invented drift", async ({
     route.fulfill({ status: 404, body: "Unavailable" }),
   );
   await createRoom(page);
-  await page
-    .getByLabel("Video URL")
-    .fill("https://media.example/unavailable.webm");
+  await (
+    await sourceField(page)
+  ).fill("https://media.example/unavailable.webm");
   await page.getByRole("button", { name: "Load video" }).click();
   await expect(page.getByRole("alert")).toContainText("Video could not load");
   await expect(page.getByTestId("drift")).toHaveText("--");
@@ -411,7 +415,7 @@ test("three participants stay aligned through play, pause, seek and late join", 
     await createRoom(host);
     const invite = host.url();
     await join(second, "Sam", invite);
-    await host.getByLabel("Video URL").fill("https://media.example/clip.webm");
+    await (await sourceField(host)).fill("https://media.example/clip.webm");
     await host.getByRole("button", { name: "Load video" }).click();
     await host.getByRole("button", { name: "Play", exact: true }).click();
     await host.getByLabel("Seek video").focus();
@@ -485,7 +489,7 @@ test("J K L use host commands and guests cannot control playback", async ({
     await guest.goto(host.url());
     await guest.getByLabel("What should we call you?").fill("Sam");
     await guest.getByRole("button", { name: /^Join/ }).click();
-    await host.getByLabel("Video URL").fill("https://media.example/clip.webm");
+    await (await sourceField(host)).fill("https://media.example/clip.webm");
     await host.getByRole("button", { name: "Load video" }).click();
     await expect(
       host.getByRole("button", { name: "Play", exact: true }),
@@ -512,7 +516,7 @@ test("J K L use host commands and guests cannot control playback", async ({
     await host.keyboard.press("x");
     await host.getByRole("button", { name: "Audio settings" }).click();
     await expect(
-      host.getByRole("button", { name: "[fx off]", exact: true }),
+      host.getByRole("button", { name: "Effects off", exact: true }),
     ).toHaveAttribute("aria-pressed", "false");
     await host.keyboard.press("f");
     await expect(
@@ -552,7 +556,7 @@ test("GIFs, reactions, multiline chat and scroll-aware unread messages", async (
     await guest.goto(host.url());
     await guest.getByLabel("What should we call you?").fill("Sam");
     await guest.getByRole("button", { name: /^Join/ }).click();
-    await expect(host.getByText("quiet in here.")).toBeVisible();
+    await expect(host.getByText("No messages yet")).toBeVisible();
     await host.getByLabel("Chat message").fill("first line");
     await host.getByLabel("Chat message").press("Shift+Enter");
     await host.getByLabel("Chat message").type("second line");
@@ -698,7 +702,7 @@ test("audio-only voice connects with explicit permission, mute and teardown", as
     await guest.goto(host.url());
     await guest.getByLabel("What should we call you?").fill("Sam");
     await guest.getByRole("button", { name: /^Join/ }).click();
-    await host.getByLabel("Video URL").fill("https://media.example/clip.webm");
+    await (await sourceField(host)).fill("https://media.example/clip.webm");
     await host.getByRole("button", { name: "Load video" }).click();
     await expect(
       host.getByRole("button", { name: "Play", exact: true }),
@@ -897,7 +901,7 @@ test("audio-only voice connects with explicit permission, mute and teardown", as
       ),
     ).toBe(true);
     await first.setOffline(true);
-    await expect(host.getByRole("status")).toContainText("Reconnecting");
+    await expect(host.getByRole("status")).toContainText(/reconnecting/i);
     await expect
       .poll(() =>
         host.evaluate(() =>
@@ -919,7 +923,9 @@ test("audio-only voice connects with explicit permission, mute and teardown", as
       )
       .toBe(true);
     await first.setOffline(false);
-    await expect(host.getByRole("status")).toHaveText("Connected");
+    await expect(host.getByRole("status")).not.toContainText(
+      /reconnecting|offline|rejoining/i,
+    );
     await expect(
       host.getByRole("button", { name: "Enable microphone", exact: true }),
     ).toBeVisible();
@@ -1051,7 +1057,7 @@ test("optimistic reactions reconcile, cap nodes and reduce motion", async ({
       timeout: 3000,
     });
     await page.getByRole("button", { name: "Audio settings" }).click();
-    await page.getByRole("button", { name: "[fx]", exact: true }).click();
+    await page.getByRole("button", { name: "Effects on", exact: true }).click();
     await page.getByRole("button", { name: "React heart" }).click();
     await expect(page.locator(".floating-reaction")).toHaveClass(
       /reaction-static/,
@@ -1102,15 +1108,15 @@ test("compact composer, emoji messages, source editing and normal/debug telemetr
   await input.press("Enter");
   await expect(page.locator(".emoji-count-1")).toBeVisible();
   await expect(page.locator(".emoji-count-1")).toHaveCSS("font-size", "52px");
-  await page.getByLabel("Video URL").fill("https://media.example/clip.webm");
+  await (await sourceField(page)).fill("https://media.example/clip.webm");
   await page.getByRole("button", { name: "Load video" }).click();
   await expect(
-    page.getByRole("button", { name: /Edit source/ }),
+    page.getByRole("button", { name: "Change video source" }),
   ).toHaveAttribute("aria-expanded", "false");
   await expect(page.getByLabel("Video URL")).toBeHidden();
-  await page.getByRole("button", { name: /Edit source/ }).click();
+  await page.getByRole("button", { name: "Change video source" }).click();
   await expect(page.getByLabel("Video URL")).toBeVisible();
-  await page.getByRole("button", { name: "Close source editor" }).click();
+  await page.keyboard.press("Escape");
   await page.screenshot({
     path: "test-results/ux-loaded-chat.png",
     fullPage: true,
@@ -1295,7 +1301,7 @@ test("a pointer scrub emits only once on release, including release outside the 
     }),
   );
   await createRoom(page);
-  await page.getByLabel("Video URL").fill("https://media.example/clip.webm");
+  await (await sourceField(page)).fill("https://media.example/clip.webm");
   await page.getByRole("button", { name: "Load video" }).click();
   await expect(
     page.getByRole("button", { name: "Play", exact: true }),
@@ -1523,5 +1529,211 @@ test("websocket-first connection falls back to polling when websocket is unavail
   } finally {
     await page.close();
     await isolated.app.shutdown();
+  }
+});
+
+test("focused controls retain global shortcuts while text entry and native keyboard access stay intact", async ({
+  page,
+  browser,
+}) => {
+  const isolated = await isolatedRoomServer();
+  const guestContext = await browser.newContext();
+  const commands: { action: string; position: number }[] = [];
+  page.on("websocket", (ws) =>
+    ws.on("framesent", (e) => {
+      const frame = String(e.payload);
+      if (frame.includes('"playback:control"'))
+        commands.push(JSON.parse(frame.slice(frame.indexOf("[")))[1]);
+    }),
+  );
+  try {
+    await serveClip(page.context());
+    await createRoom(page, false, isolated.origin);
+    await expect(page.getByText("No messages yet")).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Send message" }),
+    ).toBeDisabled();
+    await page.getByRole("button", { name: "ready?", exact: true }).click();
+    await expect(page.getByRole("log").locator(".message")).toHaveCount(1);
+    await expect(page.getByRole("log")).toContainText("ready?");
+    const field = await sourceField(page);
+    await field.fill("");
+    await field.pressSequentially("jklfcmxt");
+    await expect(field).toHaveValue("jklfcmxt");
+    expect(commands).toHaveLength(0);
+    expect(await page.evaluate(() => Boolean(document.fullscreenElement))).toBe(
+      false,
+    );
+    await field.fill("https://media.example/clip.webm");
+    await page.getByRole("button", { name: "Load video" }).click();
+    await expect(field).toBeHidden();
+    const play = page.getByRole("button", { name: "Play", exact: true });
+    await expect(play).toBeEnabled();
+    await play.click();
+    await expect.poll(() => commands.at(-1)?.action).toBe("play");
+    const playerButton = page.locator(".player-controls button").first();
+    await expect(playerButton).toBeFocused();
+    expect(
+      await playerButton.evaluate((el) => el.matches(":focus-visible")),
+    ).toBe(false);
+    await page.keyboard.press("l");
+    await expect
+      .poll(() => commands.at(-1)?.position ?? 0)
+      .toBeGreaterThanOrEqual(10);
+    await page.waitForTimeout(180);
+    await page.keyboard.press("j");
+    await expect.poll(() => commands.at(-1)?.position ?? 100).toBeLessThan(2);
+    await page.keyboard.press("k");
+    await expect.poll(() => commands.at(-1)?.action).toBe("pause");
+    const heart = page
+      .getByLabel("Watch reactions")
+      .getByRole("button", { name: "React heart" });
+    await heart.click();
+    await expect(heart).toBeFocused();
+    expect(await heart.evaluate((el) => el.matches(":focus-visible"))).toBe(
+      false,
+    );
+    await page.keyboard.press("Space");
+    await expect.poll(() => commands.at(-1)?.action).toBe("play");
+    // Space must not also activate the focused reaction button.
+    await expect(page.locator(".floating-reaction")).toHaveCount(1);
+    const slider = page.getByLabel("Seek video");
+    await page.locator(".player-shell").hover();
+    await slider.click();
+    await expect(slider).toBeFocused();
+    await page.keyboard.press("f");
+    await expect
+      .poll(() =>
+        page.evaluate(() =>
+          document.fullscreenElement?.classList.contains("player-shell"),
+        ),
+      )
+      .toBe(true);
+    await page.keyboard.press("Escape");
+    await expect
+      .poll(() => page.evaluate(() => Boolean(document.fullscreenElement)))
+      .toBe(false);
+    await page.locator(".player-shell").hover();
+    await slider.click();
+    await page.keyboard.press("Tab");
+    expect(
+      await page.evaluate(() =>
+        document.activeElement?.matches(":focus-visible"),
+      ),
+    ).toBe(true);
+    expect(
+      await page.evaluate(
+        () => getComputedStyle(document.activeElement!).outlineColor,
+      ),
+    ).toBe("rgb(255, 122, 89)");
+    await slider.focus();
+    await page.waitForTimeout(180);
+    const beforeArrow = commands.length;
+    await page.keyboard.press("ArrowRight");
+    await expect.poll(() => commands.length).toBeGreaterThan(beforeArrow);
+    const chat = page.getByLabel("Chat message");
+    await chat.fill("");
+    const beforeTyping = commands.length;
+    await chat.pressSequentially("jklfcmxt");
+    await chat.press("Space");
+    await expect(chat).toHaveValue("jklfcmxt ");
+    expect(commands).toHaveLength(beforeTyping);
+    await expect(
+      page.getByRole("button", { name: "Collapse sidebar" }),
+    ).toBeVisible();
+    expect(await page.evaluate(() => Boolean(document.fullscreenElement))).toBe(
+      false,
+    );
+    await expect(page.getByRole("button", { name: "Send message" })).toHaveCSS(
+      "background-color",
+      "rgb(255, 122, 89)",
+    );
+    await chat.press("Enter");
+    await expect(chat).toHaveValue("");
+    const guest = await guestContext.newPage();
+    await serveClip(guestContext);
+    let guestCommands = 0;
+    guest.on("websocket", (ws) =>
+      ws.on("framesent", (e) => {
+        if (String(e.payload).includes('"playback:control"')) guestCommands++;
+      }),
+    );
+    await guest.goto(page.url());
+    await guest.getByLabel("What should we call you?").fill("Guest");
+    await guest.getByRole("button", { name: /^Join/ }).click();
+    await expect(guest.getByRole("heading", { name: /Room / })).toBeVisible();
+    await expect(
+      guest.getByRole("button", { name: "Change video source" }),
+    ).toHaveCount(0);
+    await guest
+      .getByLabel("Watch reactions")
+      .getByRole("button", { name: "React fire" })
+      .click();
+    for (const key of ["Space", "j", "k", "l"]) await guest.keyboard.press(key);
+    expect(guestCommands).toBe(0);
+  } finally {
+    await page.close();
+    await guestContext.close();
+    await isolated.app.shutdown();
+  }
+});
+
+test("polished Home aligns containers and shows one inline join error", async ({
+  page,
+}) => {
+  await page.route("**/api/rooms/*", (route) =>
+    route.fulfill({ status: 404, json: { error: "Room not found" } }),
+  );
+  for (const viewport of [
+    { width: 1366, height: 768 },
+    { width: 390, height: 844 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await page.goto("/");
+    const brand = (await page.locator(".home-topbar .brand").boundingBox())!;
+    const hero = (await page.locator(".home-intro").boundingBox())!;
+    expect(Math.abs(brand.x - hero.x)).toBeLessThan(1);
+    await expect(page.locator(".home-preview")).toHaveAttribute(
+      "aria-hidden",
+      "true",
+    );
+    await expect(page.locator(".preview-shell")).toHaveCSS("transform", "none");
+    await expect(page.locator(".preview-message")).toHaveCount(3);
+    const code = page.getByLabel("Room code or invite link");
+    await code.fill("ZZZZZZ");
+    await expect(code).toHaveAttribute("aria-invalid", "true");
+    await expect(
+      page.getByText("Room not found. Check the code.", { exact: true }),
+    ).toHaveCount(1);
+    await expect(
+      page.getByText("Codes never contain 0, O, 1, I or L."),
+    ).toBeVisible();
+    await expect(page.locator(".join-row")).toHaveCSS(
+      "border-color",
+      "rgb(229, 72, 77)",
+    );
+    const validation = (await page.locator(".lookup-detail").boundingBox())!;
+    const note = (await page.locator(".home-note").boundingBox())!;
+    expect(note.y - validation.y - validation.height).toBeGreaterThanOrEqual(
+      24,
+    );
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+    expect(
+      await page.evaluate(() =>
+        ["--bg", "--panel", "--raised", "--line"].map((key) =>
+          getComputedStyle(document.documentElement)
+            .getPropertyValue(key)
+            .trim(),
+        ),
+      ),
+    ).toEqual(["#120f10", "#1b1819", "#242021", "#2e2a2b"]);
+    await code.fill("");
+    await expect(
+      page.getByText("Codes never contain 0, O, 1, I or L."),
+    ).toHaveCount(0);
   }
 });

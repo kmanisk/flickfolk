@@ -102,4 +102,4 @@ log access. The server does not fetch arbitrary user image links.
 - Add an approved 1200×630 `apps/client/public/og.png`; metadata currently references it.
 - Validate Docker/CI and the physical-device/TURN checks above.
 - Obtain GIPHY key/approval only if enabling optional search publicly.
-- Authorize deployment separately. No cloud service has been created or deployed.
+- Render deployment is cancelled for the current polish pass. Do not provision or deploy services; choose a non-Render target in a future deployment task.

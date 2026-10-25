@@ -3,6 +3,7 @@ import {
   useEffect,
   useRef,
   type ButtonHTMLAttributes,
+  type HTMLAttributes,
   type ReactNode,
   type RefObject,
 } from "react";
@@ -45,11 +46,13 @@ export const IconButton = forwardRef<
 export function Chip({
   children,
   className = "",
-}: {
-  children: ReactNode;
-  className?: string;
-}) {
-  return <span className={`chip ${className}`}>{children}</span>;
+  ...props
+}: HTMLAttributes<HTMLSpanElement>) {
+  return (
+    <span {...props} className={`chip ${className}`}>
+      {children}
+    </span>
+  );
 }
 export function Kbd({ children }: { children: ReactNode }) {
   return <kbd>{children}</kbd>;

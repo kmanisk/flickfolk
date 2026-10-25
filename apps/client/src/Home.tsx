@@ -12,7 +12,7 @@ import {
   WifiOff,
 } from "lucide-react";
 import { brand, normalizeCode, REACTIONS } from "@watchparty/shared";
-import { Brand, Button, Chip, IconButton } from "./ui/index.js";
+import { Avatar, Brand, Button, Chip, IconButton } from "./ui/index.js";
 import type { RoomLookup } from "./useRoomLookup.js";
 interface HomeProps {
   name: string;
@@ -27,6 +27,7 @@ interface HomeProps {
   setEffects: (value: boolean) => void;
   lookup: RoomLookup;
   notFound: boolean;
+  joinInvalid: boolean;
   goHome: () => void;
 }
 export function Home({
@@ -42,19 +43,20 @@ export function Home({
   setEffects,
   lookup,
   notFound,
+  joinInvalid,
   goHome,
 }: HomeProps) {
-  const lookupText =
-    lookup.state === "tuning"
-      ? "tuning…"
+  const invalid = joinInvalid || lookup.state === "missing";
+  const lookupText = invalid
+    ? "Room not found. Check the code."
+    : lookup.state === "tuning"
+      ? "Checking…"
       : lookup.state === "found"
-        ? `room found / ${lookup.count} ${lookup.count === 1 ? "person" : "people"} on this channel`
-        : lookup.state === "missing"
-          ? "no signal"
-          : "waiting";
+        ? "Room found"
+        : "waiting";
   return (
     <div className="home-page" data-fx={effects ? "on" : "off"}>
-      <header className="topbar">
+      <header className="topbar home-topbar">
         <Brand />
         <div className="topbar-actions">
           <span
@@ -69,7 +71,7 @@ export function Home({
             {status}
           </span>
           <IconButton
-            aria-label={effects ? "[fx]" : "[fx off]"}
+            aria-label={effects ? "Effects on" : "Effects off"}
             aria-pressed={effects}
             onClick={() => setEffects(!effects)}
           >
@@ -88,8 +90,8 @@ export function Home({
       </header>
       {notFound ? (
         <main className="no-signal">
-          <Chip>No signal</Chip>
-          <h1>No signal.</h1>
+          <Chip>Room not found</Chip>
+          <h1>Room not found.</h1>
           <p>That room is off the map. Let’s find your people.</p>
           <Button variant="primary" onClick={goHome}>
             Back home
@@ -142,10 +144,12 @@ export function Home({
                 <span>or join a friend’s room</span>
               </div>
               <label htmlFor="room-code">Room code or invite link</label>
-              <div className="join-row">
+              <div className={`join-row ${invalid ? "is-invalid" : ""}`}>
                 <Link2 aria-hidden="true" />
                 <input
                   id="room-code"
+                  aria-invalid={invalid}
+                  aria-describedby="room-validation"
                   aria-label="Room code or invite link"
                   value={code}
                   maxLength={2048}
@@ -168,7 +172,8 @@ export function Home({
                 </Button>
               </div>
               <div
-                className={`lookup lookup-${lookup.state}`}
+                id="room-validation"
+                className={`lookup lookup-${invalid ? "missing" : lookup.state}`}
                 role="status"
                 aria-label="Room lookup"
                 data-testid="room-lookup"
@@ -176,21 +181,23 @@ export function Home({
                 <i />
                 {lookupText}
               </div>
-              {lookup.detail && (
-                <p className="lookup-detail">{lookup.detail}</p>
+              {invalid && (
+                <p className="lookup-detail">
+                  Codes never contain 0, O, 1, I or L.
+                </p>
               )}
             </section>
             <p className="home-note">One link. Your people. No sign-up.</p>
           </section>
-          <section className="home-preview" aria-label="Room preview">
+          <section className="home-preview" aria-hidden="true">
             <div className="preview-caption">
               <span>A place to press play, together.</span>
-              <Film aria-hidden="true" />
+              <Film />
             </div>
             <div className="preview-shell">
               <div className="preview-topbar">
                 <span className="preview-brand">
-                  <Play fill="currentColor" aria-hidden="true" />
+                  <Play fill="currentColor" />
                   {brand.productName}
                 </span>
                 <Chip className="room-code">
@@ -198,61 +205,67 @@ export function Home({
                 </Chip>
               </div>
               <div className="preview-room">
-                <div className={`preview-video lookup-${lookup.state}`}>
-                  <div className="preview-orbit" />
-                  <div className="preview-play">
-                    <Play fill="currentColor" aria-hidden="true" />
-                  </div>
-                  <span>
-                    {lookup.state === "found"
-                      ? "Your people are here."
-                      : lookup.state === "tuning"
-                        ? "Tuning into your room…"
-                        : lookup.state === "missing"
-                          ? "Let’s find your room."
-                          : "The best seat is next to your people."}
+                <div className="preview-video">
+                  <div className="preview-sun" />
+                  <div className="preview-horizon" />
+                  <span className="preview-play">
+                    <Play fill="currentColor" />
                   </span>
+                  <div className="preview-reactions">
+                    <span>{REACTIONS[0]}</span>
+                    <span>{REACTIONS[1]}</span>
+                    <span>{REACTIONS[5]}</span>
+                  </div>
                   <div className="preview-timeline">
-                    <Play aria-hidden="true" />
+                    <Play />
                     <i />
-                    <Film aria-hidden="true" />
+                    <Film />
                   </div>
                 </div>
                 <div className="preview-rail">
                   <div>
-                    <MessageSquare aria-hidden="true" />
+                    <MessageSquare />
                     Chat
-                    <Users aria-hidden="true" />
+                    <Users />
                   </div>
-                  <div className="preview-lines" aria-hidden="true">
-                    <i />
-                    <b />
-                    <i />
-                    <b />
-                    <i />
+                  <div className="preview-messages">
+                    {[
+                      ["Nora", "Made it!"],
+                      ["Ari", "Best part coming up"],
+                      ["You", "Ready when you are"],
+                    ].map(([name, text]) => (
+                      <div className="preview-message" key={name}>
+                        <Avatar name={name!} size={24} />
+                        <span>
+                          <strong>{name}</strong>
+                          <span>{text}</span>
+                        </span>
+                      </div>
+                    ))}
                   </div>
                   <div className="preview-compose">
-                    <SmilePlus aria-hidden="true" />
-                    <i />
-                    <ArrowRight aria-hidden="true" />
+                    <SmilePlus />
+                    <span>Message…</span>
+                    <ArrowRight />
                   </div>
                 </div>
               </div>
               <div className="preview-bottom">
-                <Link2 aria-hidden="true" />
-                <span>Bring a video link</span>
-                <span>
-                  {REACTIONS[0]} {REACTIONS[1]} {REACTIONS[5]}
+                <Link2 />
+                <span>Your shared screen</span>
+                <span className="preview-synced">
+                  <i />
+                  synced
                 </span>
               </div>
             </div>
             <div className="preview-footnotes">
               <span>
-                <Film aria-hidden="true" />
+                <Film />
                 YouTube & video links
               </span>
               <span>
-                <Users aria-hidden="true" />
+                <Users />
                 Your own little crowd
               </span>
             </div>

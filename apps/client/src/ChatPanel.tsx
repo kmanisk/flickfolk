@@ -4,6 +4,7 @@ import {
   ArrowDown,
   Copy,
   Link2,
+  MessageCircle,
   SendHorizontal,
   SmilePlus,
 } from "lucide-react";
@@ -37,9 +38,11 @@ export function ChatPanel({
   onUnread,
   visible,
   selfId,
+  onCopyInvite,
 }: {
   visible: boolean;
   selfId?: string;
+  onCopyInvite: () => void;
   messages: Message[];
   connected: boolean;
   inputRef: React.RefObject<HTMLTextAreaElement | null>;
@@ -181,7 +184,32 @@ export function ChatPanel({
           }
         }}
       >
-        {!messages.length && <p className="quiet-chat">quiet in here.</p>}
+        {!messages.length && (
+          <div className="empty-chat">
+            <span className="empty-chat-icon">
+              <MessageCircle aria-hidden="true" />
+            </span>
+            <h2>No messages yet</h2>
+            <p>Say hi, or send the invite.</p>
+            <Button onClick={onCopyInvite}>Copy invite</Button>
+            <div className="chat-quick-sends">
+              {["hey \u{1f44b}", "ready?", "play it"].map((message) => (
+                <Button
+                  key={message}
+                  variant="ghost"
+                  disabled={!connected}
+                  onClick={() =>
+                    onSend(message, "text", (result) => {
+                      if (!result.ok) setError(result.error);
+                    })
+                  }
+                >
+                  {message}
+                </Button>
+              ))}
+            </div>
+          </div>
+        )}
         {rendered.map((message, index) => (
           <ChatMessageRow
             key={message.id}
@@ -352,7 +380,7 @@ export function ChatPanel({
           )}
           <IconButton
             type="submit"
-            className="send-button"
+            className={`send-button ${text.trim() ? "has-text" : ""}`}
             aria-label="Send message"
             disabled={!connected || !text.trim()}
           >
