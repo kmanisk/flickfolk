@@ -56,11 +56,11 @@ describe("reactions and GIF searches", () => {
     const first = [reaction(1)];
     expect(addReaction(first, { ...reaction(1), id: "server-id" })).toBe(first);
   });
-  it("keeps at most 12 reactions and discards the oldest", () => {
+  it("keeps at most 30 reactions and discards the oldest", () => {
     let items: Reaction[] = [];
-    for (let n = 0; n < 30; n++) items = addReaction(items, reaction(n));
-    expect(items).toHaveLength(12);
-    expect(items[0]?.id).toBe("18");
+    for (let n = 0; n < 50; n++) items = addReaction(items, reaction(n));
+    expect(items).toHaveLength(30);
+    expect(items[0]?.id).toBe("20");
   });
   it("validates search shape and bounds", () => {
     expect(gifQuery("  hello cat  ")).toBe("hello cat");

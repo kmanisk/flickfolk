@@ -1,96 +1,61 @@
-# Afterglow design reference
+# Flickfolk — Warm Dusk
 
-Reference: https://www.figma.com/design/9mkEKyqIstCdmsN5vmv1BH/WatchParty-UI-Redesign
-Requested frames: latest Home / 1440, Room / 1440, Room / 390.
-
-Figma inspection is currently blocked by the connector Starter-plan tool quota;
-public URL retrieval also failed. No frame dimensions, asset matches or pixel
-fidelity are claimed. This implementation follows the explicit written brief.
-Reconcile against those three frames when Figma access is restored.
+The current user brief supersedes all prototype design rules.
+Locked reference: `design/refs/room.png`. This file was absent at the start of this
+pass; use the explicit specification without claiming a pixel match.
 
 ## Tokens
+bg #120f10; panel #1b1819; raised #242021; line #2e2a2b.
+text #f5efe8; muted #a8a09a; accent #ff7a59; accent text #1a0d0b.
+online #3ddc84; danger #e5484d.
+Coral is the only normal accent. Danger is reserved for errors/destructive hover.
+Figtree Variable for all UI. JetBrains Mono only for room codes and sync numbers.
+Self-host Fontsource latin normal subsets, font-display swap. UI 14–16px, never
+below 13px. Timestamps/telemetry use tabular numerals.
+Panel radius 16px; video 20px; buttons 12px; chips fully round; bubbles 18px with
+a tighter sender corner. Separators 1px. No glass, backdrop blur or decorative shadows.
+Lucide icons: individual imports, 20px, strokeWidth 1.75. No Unicode UI icons.
 
-Rose Pine base #191724, surface #1f1d2e, overlay #26233a, muted #6e6a86,
-subtle #908caa, text #e0def4, love #eb6f92, gold #f6c177,
-rose #ebbcba, pine #31748f, foam #9ccfd8, iris #c4a7e7.
-Use bundled Instrument Serif for major display headings, IBM Plex Sans Variable for
-body/controls/chat, and JetBrains Mono only for technical broadcast metadata.
-This hierarchy supersedes the earlier all-Inter pass. Fonts and OFL licenses are local.
-Square corners, thin separators and generous negative space; no glass or SaaS cards.
+## Primitives and presence
+Use the existing workspace paths: `apps/client/src/ui`, `packages/shared/src/brand.ts`.
+Button, IconButton, Chip, Tabs, Tooltip, Toast, Avatar, AvatarStack, Popover, Kbd.
+One coral focus ring; controls 40px desktop, at least 44px mobile.
+Name-hashed initials palette: #ff8a6b, #f2b05e, #7cc6a4, #7aa8e6, #c49be8, #e88fb3.
+Dark initials, online dot, truthful mic/host state. Speaking rings require measured
+voice activity. Keep active-speaker overlays inside the fullscreen stage.
 
-## Layout and behavior
+## Desktop room
+At >=1024px, a 100dvh grid: topbar 56px, main minmax(0,1fr), bottom bar 56px.
+No page scroll. Main stage flexes beside a 360px Chat/People rail; collapsed rail 56px.
+Topbar: Flickfolk, room/copy, avatar stack, Invite, shortcuts, settings, mic, leave.
+No duplicate title row or participant strip. Leave is ghost, danger only on hover.
+Stage contains object-fit-contain video, a static 8% coral radial glow, source editor
+and overlay controls. Controls hide after 2.5s only while playing and idle.
+Bottom bar: source domain/editor, six-reaction dock, real sync/drift/RTT chip.
+Detailed version/correction telemetry appears only with ?debug=1.
 
-1440 home: compact wordmark/nav, huge two-line hero, left ticket with name,
-create and code join; right CRT color test-card with live channel and lookup.
-1440 room: compact code/host header; dominant player and slim source bar left;
-Chat/People rail right. 390 room stacks screen, controls, source and tab rail.
-Always reserve space for the fixed tmux-style statusline, including safe areas.
-Chat displays actual participants, timestamps and host. No invented chat or metrics.
-Lookup progresses waiting -> tuning... -> room found / no signal after a 300ms
-input debounce; changes cancel pending requests. Network failure is identified.
+## Conversation and motion
+Group consecutive same-author messages within five minutes, cap rendered history at
+200. No repeated identity on grouped lines; timestamps on hover. Emoji-only <=3
+messages are large and bubble-free. Reactions never become chat messages.
+Compact one-row composer grows to four lines, Enter sends, Shift+Enter newline,
+plain-text paste only, 500 characters. Follow only within 80px of the bottom.
+GIPHY is lazy and offered only after a successful configured provider check; Link
+remains an overflow fallback. Provider failures do not break chat.
+Reactions float 180–280px over 1.4–1.8s, cap 30, reconcile optimistic echoes.
+Reduced motion uses a short fade; FX off removes decorative glow/motion.
+Native transform/opacity transitions only; rail width may transition 220ms.
 
-## Effects and accessibility
+## Home and mobile
+Home >=1024px: concise heading/form left, HTML/CSS room preview right; primary action
+visible at 1366x768. No fake people, stats, screenshots, generated artwork or queues.
+At 390x844 the primary action remains above fold; preview follows the form.
+Room <768px: topbar 48px, near-top 16:9 stage, tabs and flexible panel, composer above
+safe-area bottom. A single floating reaction button opens an upward dock.
+No horizontal overflow at 360px. Fullscreen targets the stage wrapper with overlays.
 
-Scanlines apply only to the video/display area. Vignette/grain are subtle and
-non-interactive. Power-on runs on media change; gold afterglow runs on a new
-playback revision. [fx] toggles CSS effects; reduced motion disables all effects.
-Every interactive target is at least 40px. Visible focus, named controls, actual
-tab semantics, keyboard shortcuts that ignore typing, and responsive overflow checks.
-
-## Verification
-
-Inspect browser screenshots at 1440 and 390px. Keep realtime acceptance tests;
-add lookup states, stale response handling, tabs, shortcuts and truthful telemetry.
-No authentication, database or component library. Deployment is out of scope.
-
-## Local usability follow-up
-
-The fullscreen button and F key toggle entry/exit; fullscreenchange keeps the button
-state correct when the browser exits. The previous upright Inter pass is superseded by the display/UI/metadata
-font hierarchy above. The statusline labels the measured playback offset separately
-from network RTT. A ready or reconnected player aligns once immediately; existing
-ongoing drift correction remains unchanged. Three-participant browser tests cover
-late join, playback and seeking. The 200ms playing tolerance is not a promise of
-zero offset or a network latency measurement.
-
-## Collaboration controls
-
-Keep the Rose Pine broadcast visual language. Microphone, reactions and GIF actions use
-square controls; the empty conversation says only "quiet in here.". Source stays
-visible but becomes secondary after a video loads. Remove the explanatory playback
-sentence entirely. The fixed statusline prioritizes current sync state, participant
-count and code; offset/RTT/revision stay smaller secondary measurements.
-Chat supports compact timestamps, multiline entry, retained drafts and scroll-aware
-unread state. Reactions render inside the fullscreen player, expire after 1.5 seconds
-and become static with FX off or reduced motion. People shows measured speaking and
-mic state. No camera, generic pills, demonstration messages or fake metrics.
-
-## Motion and audio polish
-
-Use compositor-only reaction bursts with random fixed trajectories, a twelve-node
-cap, echo deduplication and a 600ms reduced-motion/FX-off state. Keep the overlay
-inside the player and non-interactive. Speak indicators pulse only the outline;
-RMS hysteresis controls state, never microphone enablement. Fullscreen retains
-controls, reactions and speaking names. Native micro-motion uses 120–160ms changes
-on controls/popovers/messages only; no scrolling or continuous background motion.
-The GIPHY picker uses the existing square dark pane treatment, small lazy previews,
-its official attribution mark and an honest unavailable state without a key.
-
-
-## Shared-room presence pass
-
-Name-hashed circular monograms use flat palette colors and survive reconnection.
-Measured RMS changes ring CSS properties directly, without per-sample React state.
-Speaking avatars/names appear inside the screen, including fullscreen, capped at
-three; silence releases the overlay after 450ms. Disconnected participants clear it.
-People prioritizes name, host, mic and speech. Local audio is never looped back.
-
-The rail uses a one-line textarea (plain-text equivalent to contenteditable), grows
-to four lines, and preserves Enter/Shift+Enter, limits and scroll-aware unread state.
-Emoji-only messages use 52px/38px type and one insertion animation; room reactions
-remain ephemeral. GIF and emoji panels sit above the sticky horizontal composer.
-Source collapses after loading. Default statusline exposes sync/count/channel only;
-`?debug=1` retains measured RTT/offset/revision/host. No telemetry was removed.
-
-Shared CSS motion tokens are 120/180/320ms. Reduced motion disables nonessential
-motion. Home section visibility uses a one-shot IntersectionObserver; no scroll loop.
+## Invariants
+Preserve playback engine, host authority, echo guards, Socket.IO wire events,
+reconnect identity, peer voice, compression and ducking. No camera/auth/database.
+Lazy Room, voice, GIF and YouTube API. No animation library or UI framework.
+No deployment. Verify lint/typecheck/unit/build/browser and actual responsive renders.

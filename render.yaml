@@ -1,7 +1,7 @@
 # Deployment preparation only. One instance owns the in-memory rooms.
 services:
   - type: web
-    name: afterglow
+    name: flickfolk
     runtime: node
     buildCommand: npm ci --include=dev && npm run build
     startCommand: npm start

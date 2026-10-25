@@ -1,21 +1,26 @@
 import { useSyncExternalStore } from "react";
-import type { Room } from "@watchparty/shared";
+import { Link2, Wifi, WifiOff } from "lucide-react";
+import { REACTIONS, type ReactionSymbol, type Room } from "@watchparty/shared";
 import type { PlaybackMetrics } from "./Player.js";
 import { syncStore } from "./lib/syncRuntime.js";
+import { Button, Chip } from "./ui/index.js";
+const labels = ["heart", "laugh", "surprise", "cry", "applause", "fire"];
 export function SyncStatusline({
   room,
   connected,
   status,
   phase,
-  hostName,
   debug,
+  onSource,
+  onReaction,
 }: {
   room: Room | null;
   connected: boolean;
   status: string;
   phase: PlaybackMetrics["state"];
-  hostName: string;
   debug: boolean;
+  onSource?: () => void;
+  onReaction?: (symbol: ReactionSymbol) => void;
 }) {
   const metrics = useSyncExternalStore(
     syncStore.subscribe,
@@ -25,49 +30,64 @@ export function SyncStatusline({
     phase,
   );
   const state = !connected
-    ? status.toLowerCase()
+    ? "offline"
     : !room
       ? "standby"
       : unavailable
         ? phase
-        : metrics.state === "synced" && !room.playback.playing
-          ? "paused"
-          : metrics.state;
+        : metrics.state;
   const drift = connected && room && !unavailable ? metrics.driftMs : null;
+  const source = room?.playback.media
+    ? new URL(room.playback.media.url).hostname.replace(/^www\./, "")
+    : "Choose a video";
   return (
-    <div
-      className={`sync-statusline ${debug ? "debug-status" : ""}`}
+    <footer
+      className={`bottom-bar sync-statusline ${debug ? "debug-status" : ""}`}
       aria-label="Playback diagnostics"
     >
-      <span className="status-brand">AFTERGLOW</span>
-      <span className={connected ? "status-connected" : "status-disconnected"}>
-        {state}
-      </span>
-      <span className="status-secondary" data-testid="drift">
-        offset{" "}
-        {drift === null
-          ? "--"
-          : `${drift > 0 ? "+" : ""}${Math.round(drift)}ms`}
-      </span>
-      <span className="status-secondary" data-testid="rtt">
-        rtt{" "}
-        {connected && metrics.rttMs !== null
-          ? `${Math.round(metrics.rttMs)}ms`
-          : "--"}
-      </span>
-      <span className="status-secondary">
-        state {room ? `v${room.playback.revision}` : "--"}
-      </span>
-      <span className="status-secondary">
-        corrections {room ? metrics.corrections : "--"}
-      </span>
-      <span className="status-host">host {hostName}</span>
-      <span className="status-count">
-        {room
-          ? `${room.participants.length} ${room.participants.length === 1 ? "person" : "people"}`
-          : "-- people"}
-      </span>
-      <span className="status-room">{room?.code ?? "STANDBY"}</span>
-    </div>
+      <Button variant="ghost" className="source-chip" onClick={onSource}>
+        <Link2 aria-hidden="true" />
+        <span>{source}</span>
+      </Button>
+      <div className="reaction-dock" aria-label="Watch reactions">
+        {REACTIONS.map((symbol, i) => (
+          <Button
+            variant="ghost"
+            key={symbol}
+            aria-label={`React ${labels[i]}`}
+            disabled={!connected}
+            onClick={() => onReaction?.(symbol)}
+          >
+            {symbol}
+          </Button>
+        ))}
+      </div>
+      <Chip className={`connection-chip sync-${state}`}>
+        <span className="sync-dot" />
+        {state === "offline" ? (
+          <WifiOff aria-hidden="true" />
+        ) : (
+          <Wifi aria-hidden="true" />
+        )}
+        <span>{connected ? state : status.toLowerCase()}</span>
+        <span data-testid="drift">
+          {drift === null
+            ? "--"
+            : `${drift >= 0 ? "+" : ""}${(drift / 1000).toFixed(2)}s`}
+        </span>
+        <span data-testid="rtt">
+          {connected && metrics.rttMs !== null
+            ? `${Math.round(metrics.rttMs)} ms`
+            : "--"}
+        </span>
+      </Chip>
+      {debug && (
+        <div className="debug-telemetry">
+          <span>state {room ? `v${room.playback.revision}` : "--"}</span>
+          <span>corrections {metrics.corrections}</span>
+          <span>clock {Math.round(metrics.offsetMs)} ms</span>
+        </div>
+      )}
+    </footer>
   );
 }

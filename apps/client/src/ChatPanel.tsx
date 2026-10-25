@@ -1,5 +1,16 @@
 import { Avatar } from "./Avatar.js";
-import { GifPicker } from "./GifPicker.js";
+import { lazy, Suspense } from "react";
+import {
+  ArrowDown,
+  Copy,
+  Link2,
+  SendHorizontal,
+  SmilePlus,
+} from "lucide-react";
+import { Button, IconButton } from "./ui/index.js";
+const GifPicker = lazy(() =>
+  import("./GifPicker.js").then((module) => ({ default: module.GifPicker })),
+);
 import {
   memo,
   useCallback,
@@ -16,7 +27,6 @@ import {
   gifUrl,
   type Ack,
   type Message,
-  type ReactionSymbol,
 } from "@watchparty/shared";
 const labels = ["heart", "laugh", "surprise", "cry", "applause", "fire"];
 export function ChatPanel({
@@ -24,26 +34,26 @@ export function ChatPanel({
   connected,
   inputRef,
   onSend,
-  onReaction,
   onUnread,
   visible,
+  selfId,
 }: {
   visible: boolean;
+  selfId?: string;
   messages: Message[];
   connected: boolean;
   inputRef: React.RefObject<HTMLTextAreaElement | null>;
   onSend: (text: string, kind: "text" | "gif", done: Ack) => void;
-  onReaction: (symbol: ReactionSymbol) => void;
   onUnread: (count: number) => void;
 }) {
+  const [gifAvailable, setGifAvailable] = useState(false);
+  const rendered = messages.slice(-200);
   const [text, setText] = useState("");
   const [gif, setGif] = useState("");
   const [gifOpen, setGifOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const gifButton = useRef<HTMLButtonElement>(null);
   const [emojiOpen, setEmojiOpen] = useState(false);
-  const [moreOpen, setMoreOpen] = useState(false);
-  const [reactionsOpen, setReactionsOpen] = useState(false);
   const [error, setError] = useState("");
   const [unread, setUnread] = useState(0);
   const scroller = useRef<HTMLDivElement>(null);
@@ -51,6 +61,35 @@ export function ChatPanel({
   const previous = useRef(messages.at(-1)?.id);
   const unreadChanged = useRef(onUnread);
   unreadChanged.current = onUnread;
+  useEffect(() => {
+    const abort = new AbortController();
+    void fetch("/api/gifs/status", { signal: abort.signal })
+      .then((response) => response.json())
+      .then(async (body: unknown) => {
+        if (
+          !body ||
+          typeof body !== "object" ||
+          !("available" in body) ||
+          !body.available
+        )
+          return;
+        const response = await fetch("/api/gifs/trending?limit=1", {
+          signal: abort.signal,
+        });
+        if (!response.ok) return;
+        const result: unknown = await response.json();
+        if (
+          !abort.signal.aborted &&
+          result &&
+          typeof result === "object" &&
+          "gifs" in result &&
+          Array.isArray(result.gifs)
+        )
+          setGifAvailable(true);
+      })
+      .catch(() => {});
+    return () => abort.abort();
+  }, []);
   function readAll() {
     nearBottom.current = true;
     setUnread(0);
@@ -85,7 +124,9 @@ export function ChatPanel({
     input.style.height = `${Math.min(96, Math.max(24, input.scrollHeight))}px`;
   }, [text, inputRef]);
   function closePopups() {
-    setEmojiOpen(false); setMoreOpen(false); setReactionsOpen(false); setGifOpen(false); setSearchOpen(false);
+    setEmojiOpen(false);
+    setGifOpen(false);
+    setSearchOpen(false);
   }
   function send(event?: FormEvent, image = false) {
     event?.preventDefault();
@@ -107,9 +148,9 @@ export function ChatPanel({
         return;
       }
       if (image) {
-        setGif((current) => current === value ? "" : current);
+        setGif((current) => (current === value ? "" : current));
         setGifOpen(false);
-      } else setText((current) => current === value ? "" : current);
+      } else setText((current) => (current === value ? "" : current));
       if (nearBottom.current && visible) readAll();
     });
   }
@@ -124,10 +165,6 @@ export function ChatPanel({
       role="tabpanel"
       aria-labelledby="chat-tab"
     >
-      <div className="rail-caption">
-        <span>SIDE CONVERSATIONS</span>
-        <span>{connected ? "LIVE" : "OFFLINE"}</span>
-      </div>
       <div
         ref={scroller}
         className="messages"
@@ -137,7 +174,7 @@ export function ChatPanel({
         onScroll={() => {
           const el = scroller.current!;
           nearBottom.current =
-            el.scrollHeight - el.scrollTop - el.clientHeight < 48;
+            el.scrollHeight - el.scrollTop - el.clientHeight < 80;
           if (nearBottom.current && unread) {
             setUnread(0);
             onUnread(0);
@@ -145,61 +182,186 @@ export function ChatPanel({
         }}
       >
         {!messages.length && <p className="quiet-chat">quiet in here.</p>}
-        {messages.map((message) => (
+        {rendered.map((message, index) => (
           <ChatMessageRow
             key={message.id}
             message={message}
+            grouped={
+              index > 0 &&
+              (message.senderId ?? message.name) ===
+                (rendered[index - 1]!.senderId ?? rendered[index - 1]!.name) &&
+              message.at - rendered[index - 1]!.at >= 0 &&
+              message.at - rendered[index - 1]!.at <= 300000
+            }
+            self={message.senderId === selfId}
             onImageLoad={onImageLoad}
-            onReaction={onReaction}
           />
         ))}
       </div>
       {unread > 0 && (
-        <button className="unread-button" onClick={readAll}>
-          {unread} new {unread === 1 ? "message" : "messages"} ↓
-        </button>
+        <Button className="unread-button" onClick={readAll}>
+          <ArrowDown aria-hidden="true" />
+          {unread} new {unread === 1 ? "message" : "messages"}
+        </Button>
       )}
-      <div className="composer-dock" onKeyDown={(event) => {
-        if (event.key === "Escape") { event.stopPropagation(); closePopups(); inputRef.current?.focus(); }
-      }}>
-      {error && <p className="collab-error" role="alert">{error}</p>}
-      {searchOpen && <GifPicker onClose={closeSearch} onSelect={(url) => onSend(url, "gif", (result) => {
-        if (result.ok) closeSearch(); else setError(result.error);
-      })} />}
-      {gifOpen && <form className="gif-form popup-surface" onSubmit={(event) => send(event, true)}>
-        <input aria-label="GIF URL" type="url" placeholder="https://…/image.gif" maxLength={500} value={gif} onChange={(e) => setGif(e.target.value)} />
-        <button className="secondary" disabled={!connected || !gif.trim()}>Send GIF</button>
-      </form>}
-      {(reactionsOpen || emojiOpen) && <div className="reaction-picker popup-surface" aria-label={emojiOpen ? "Emoji picker" : "Quick reactions"}>
-        {REACTIONS.map((symbol, i) => <button key={symbol} aria-label={`${emojiOpen ? "Insert" : "React"} ${labels[i]}`} disabled={!connected} onClick={() => {
-          if (emojiOpen) { setText((value) => (value + symbol).slice(0, 500)); inputRef.current?.focus(); }
-          else onReaction(symbol);
-          setReactionsOpen(false); setEmojiOpen(false);
-        }}>{symbol}</button>)}
-      </div>}
-      {moreOpen && <div className="composer-more popup-surface">
-        <button aria-label="Reactions" onClick={() => { closePopups(); setReactionsOpen(true); }}>Reactions</button>
-        <button aria-label="Paste GIF link" onClick={() => { closePopups(); setGifOpen(true); }}>Link</button>
-      </div>}
-      <form className="chat-form message-composer" onSubmit={send}>
-        <button type="button" aria-label="More message actions" aria-expanded={moreOpen} onClick={() => { closePopups(); setMoreOpen(!moreOpen); }}>+</button>
-        <textarea ref={inputRef} aria-label="Chat message" placeholder="Message the room…" rows={1} maxLength={500} value={text} disabled={!connected}
-          onChange={(event) => setText(plainComposerText(event.target.value))}
-          onPaste={(event) => {
-            event.preventDefault();
-            const input = event.currentTarget;
-            const start = input.selectionStart;
-            const pasted = plainComposerText(event.clipboardData.getData("text/plain"));
-            const next = plainComposerText(text.slice(0, start) + pasted + text.slice(input.selectionEnd));
-            setText(next);
-            requestAnimationFrame(() => input.setSelectionRange(Math.min(start + pasted.length, next.length), Math.min(start + pasted.length, next.length)));
-          }}
-          onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); send(); } }} />
-        <button type="button" ref={gifButton} aria-label="Search GIFs" aria-expanded={searchOpen} onClick={() => { closePopups(); setSearchOpen(!searchOpen); }}>GIF</button>
-        <button type="button" aria-label="Emoji picker" aria-expanded={emojiOpen} onClick={() => { closePopups(); setEmojiOpen(!emojiOpen); }}>☺</button>
-        <button aria-label="Send message" disabled={!connected || !text.trim()}>↑</button>
-      </form>
-      {text.length > 449 && <span className="composer-count">{text.length}/500</span>}
+      <div
+        className="composer-dock"
+        onKeyDown={(event) => {
+          if (event.key === "Escape") {
+            event.stopPropagation();
+            closePopups();
+            inputRef.current?.focus();
+          }
+        }}
+      >
+        {error && (
+          <p className="collab-error" role="alert">
+            {error}
+          </p>
+        )}
+        {searchOpen && gifAvailable && (
+          <Suspense fallback={<div className="gif-loading">Loading GIFs…</div>}>
+            <GifPicker
+              onClose={closeSearch}
+              triggerRef={gifButton}
+              onSelect={(url) =>
+                onSend(url, "gif", (result) => {
+                  if (result.ok) closeSearch();
+                  else setError(result.error);
+                })
+              }
+            />
+          </Suspense>
+        )}
+        {gifOpen && (
+          <form
+            className="gif-form popup-surface"
+            onSubmit={(event) => send(event, true)}
+          >
+            <input
+              autoFocus
+              aria-label="GIF URL"
+              type="url"
+              placeholder="https://…/image.gif"
+              maxLength={500}
+              value={gif}
+              onChange={(event) => setGif(event.target.value)}
+            />
+            <Button
+              type="submit"
+              variant="primary"
+              disabled={!connected || !gif.trim()}
+            >
+              Send GIF
+            </Button>
+          </form>
+        )}
+        {emojiOpen && (
+          <div className="emoji-picker popup-surface" aria-label="Emoji picker">
+            {REACTIONS.map((symbol, i) => (
+              <IconButton
+                key={symbol}
+                aria-label={`Insert ${labels[i]}`}
+                disabled={!connected}
+                onClick={() => {
+                  setText((value) => (value + symbol).slice(0, 500));
+                  setEmojiOpen(false);
+                  inputRef.current?.focus();
+                }}
+              >
+                {symbol}
+              </IconButton>
+            ))}
+            <Button
+              variant="ghost"
+              className="paste-link"
+              aria-label="Paste GIF link"
+              onClick={() => {
+                closePopups();
+                setGifOpen(true);
+              }}
+            >
+              <Link2 aria-hidden="true" />
+              Link
+            </Button>
+          </div>
+        )}
+        <form className="chat-form message-composer" onSubmit={send}>
+          <IconButton
+            aria-label="Emoji picker"
+            aria-expanded={emojiOpen}
+            onClick={() => {
+              closePopups();
+              setEmojiOpen(!emojiOpen);
+            }}
+          >
+            <SmilePlus aria-hidden="true" />
+          </IconButton>
+          <textarea
+            ref={inputRef}
+            aria-label="Chat message"
+            placeholder="Message the room…"
+            rows={1}
+            maxLength={500}
+            value={text}
+            disabled={!connected}
+            onChange={(event) => setText(plainComposerText(event.target.value))}
+            onPaste={(event) => {
+              event.preventDefault();
+              const input = event.currentTarget;
+              const start = input.selectionStart;
+              const pasted = plainComposerText(
+                event.clipboardData.getData("text/plain"),
+              );
+              const next = plainComposerText(
+                text.slice(0, start) + pasted + text.slice(input.selectionEnd),
+              );
+              setText(next);
+              requestAnimationFrame(() =>
+                input.setSelectionRange(
+                  Math.min(start + pasted.length, next.length),
+                  Math.min(start + pasted.length, next.length),
+                ),
+              );
+            }}
+            onKeyDown={(event) => {
+              if (
+                event.key === "Enter" &&
+                !event.shiftKey &&
+                !event.nativeEvent.isComposing
+              ) {
+                event.preventDefault();
+                send();
+              }
+            }}
+          />
+          {gifAvailable && (
+            <Button
+              ref={gifButton}
+              variant="ghost"
+              className="gif-toggle"
+              aria-label="Search GIFs"
+              aria-expanded={searchOpen}
+              onClick={() => {
+                closePopups();
+                setSearchOpen(!searchOpen);
+              }}
+            >
+              GIF
+            </Button>
+          )}
+          <IconButton
+            type="submit"
+            className="send-button"
+            aria-label="Send message"
+            disabled={!connected || !text.trim()}
+          >
+            <SendHorizontal aria-hidden="true" />
+          </IconButton>
+        </form>
+        {text.length > 449 && (
+          <span className="composer-count">{text.length}/500</span>
+        )}
       </div>
     </section>
   );
@@ -238,38 +400,60 @@ const ChatMessageRow = memo(
   function ChatMessageRow({
     message,
     onImageLoad,
-    onReaction,
+    grouped,
+    self,
   }: {
     message: Message;
     onImageLoad: () => void;
-    onReaction: (symbol: ReactionSymbol) => void;
+    grouped: boolean;
+    self: boolean;
   }) {
-    const emojiCount = message.kind === "text" ? emojiOnlyCount(message.text) : 0;
+    const emojiCount =
+      message.kind === "text" ? emojiOnlyCount(message.text) : 0;
     return (
-      <div className="message">
-        <Avatar name={message.name} />
+      <div
+        className={`message ${grouped ? "is-grouped" : ""} ${self ? "is-self" : ""}`}
+        data-message-id={message.id}
+      >
+        {!grouped && <Avatar name={message.name} />}
         <div className="message-content">
-        <div>
-          <strong>{message.name}</strong>
-          <time dateTime={new Date(message.at).toISOString()}>
-            {new Date(message.at).toLocaleTimeString([], {
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
-          </time>
-        </div>
-        {message.kind === "gif" ? (
-          <ChatImage url={message.text} onLoad={onImageLoad} />
-        ) : (
-          <p className={emojiCount ? `emoji-message emoji-count-${emojiCount}` : ""}>{message.text}</p>
-        )}
+          <div className="message-identity">
+            <strong>{message.name}</strong>
+            <time dateTime={new Date(message.at).toISOString()}>
+              {new Date(message.at).toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </time>
+          </div>
+          {message.kind === "gif" ? (
+            <ChatImage url={message.text} onLoad={onImageLoad} />
+          ) : (
+            <p
+              className={
+                emojiCount ? `emoji-message emoji-count-${emojiCount}` : ""
+              }
+            >
+              {message.text}
+            </p>
+          )}
         </div>
         <div className="message-actions">
-          <button aria-label={`React to ${message.name}'s message`} onClick={() => onReaction(REACTIONS[0]!)}>☺</button>
-          <button aria-label="Copy message" onClick={() => { void navigator.clipboard.writeText(message.text).catch(() => {}); }}>Copy</button>
+          <IconButton
+            aria-label="Copy message"
+            onClick={() => {
+              void navigator.clipboard.writeText(message.text).catch(() => {});
+            }}
+          >
+            <Copy aria-hidden="true" />
+          </IconButton>
         </div>
       </div>
     );
   },
-  (a, b) => a.message.id === b.message.id && a.onImageLoad === b.onImageLoad && a.onReaction === b.onReaction,
+  (a, b) =>
+    a.message.id === b.message.id &&
+    a.onImageLoad === b.onImageLoad &&
+    a.grouped === b.grouped &&
+    a.self === b.self,
 );

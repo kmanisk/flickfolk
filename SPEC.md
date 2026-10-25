@@ -92,3 +92,17 @@ Expose measured telemetry through an external store, publishing at most 4Hz.
 Tests cover clock selection/outliers, policy/hysteresis, stale playback, echo guards,
 throttle/clamping, autoplay and simulated convergence plus existing browser sync.
 This pass stops after Prompt A. Prompt B and C require separate sessions.
+
+## Flickfolk Warm Dusk final product
+
+This brief supersedes previous product branding and visual requirements. Follow
+DESIGN.md Warm Dusk, preserving the working engine and socket/voice protocols.
+Use existing workspace paths for shared brand and client UI primitives. Rename only
+visible/product metadata; keep existing storage/environment/protocol identifiers.
+Desktop room is viewport-bound (56px top/bottom, 360px rail); mobile has a 48px
+header, 16:9 stage and bottom composer. Group chat identities, expose configured
+GIFs only, retain plain-text safety, and use truthful 4Hz-capped sync telemetry.
+Keep the existing reaction protocol; update the six-symbol whitelist and DOM cap to
+30, with optimistic deduplication and ephemeral events. No history insertion.
+Create public kmanisk/flickfolk, checkpoint pre-warm-dusk, feature branch, merge and
+push main/tags after verification. Do not deploy. Missing locked image is documented.

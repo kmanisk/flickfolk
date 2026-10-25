@@ -131,12 +131,16 @@ it("returns empty trending results and validates bounded provider limits", async
   vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
     if (String(input).startsWith("https://api.giphy.com/")) {
       expect(new URL(String(input)).searchParams.get("limit")).toBe("6");
-      return Promise.resolve(Response.json({ data: [], meta: { status: 200 } }));
+      return Promise.resolve(
+        Response.json({ data: [], meta: { status: 200 } }),
+      );
     }
     return original(input, init);
   });
   expect((await fetch(`${base}/api/gifs/trending?limit=25`)).status).toBe(400);
-  expect((await fetch(`${base}/api/gifs/trending?limit=6&limit=7`)).status).toBe(400);
+  expect(
+    (await fetch(`${base}/api/gifs/trending?limit=6&limit=7`)).status,
+  ).toBe(400);
   const response = await fetch(`${base}/api/gifs/trending?limit=6`);
   expect(response.status).toBe(200);
   expect(await response.json()).toEqual({ gifs: [] });
@@ -146,12 +150,18 @@ it("logs bounded redacted provider failure bodies and returns a useful auth erro
   vi.stubEnv("GIPHY_API_KEY", key);
   const logging = vi.spyOn(process.stdout, "write").mockReturnValue(true);
   const original = globalThis.fetch;
-  vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => String(input).startsWith("https://api.giphy.com/")
-    ? Promise.resolve(new Response(`API rejected api_key=${key}`, { status: 401 }))
-    : original(input, init));
+  vi.spyOn(globalThis, "fetch").mockImplementation((input, init) =>
+    String(input).startsWith("https://api.giphy.com/")
+      ? Promise.resolve(
+          new Response(`API rejected api_key=${key}`, { status: 401 }),
+        )
+      : original(input, init),
+  );
   const response = await fetch(`${base}/api/gifs/search?q=cat`);
   expect(response.status).toBe(502);
-  expect(await response.json()).toEqual({ error: "GIF provider rejected its API key. Try again later." });
+  expect(await response.json()).toEqual({
+    error: "GIF provider rejected its API key. Try again later.",
+  });
   const logs = logging.mock.calls.map(([text]) => String(text)).join("");
   expect(logs).toContain("gif_provider_error");
   expect(logs).toContain("API rejected");
@@ -160,8 +170,24 @@ it("logs bounded redacted provider failure bodies and returns a useful auth erro
 it("treats malformed and synthetic provider responses as errors rather than empty results", async () => {
   vi.stubEnv("GIPHY_API_KEY", randomUUID());
   const original = globalThis.fetch;
-  vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => String(input).startsWith("https://api.giphy.com/")
-    ? Promise.resolve(Response.json({ meta: { status: 200, response_id: "" } }))
-    : original(input, init));
+  vi.spyOn(globalThis, "fetch").mockImplementation((input, init) =>
+    String(input).startsWith("https://api.giphy.com/")
+      ? Promise.resolve(
+          Response.json({ meta: { status: 200, response_id: "" } }),
+        )
+      : original(input, init),
+  );
   expect((await fetch(`${base}/api/gifs/trending`)).status).toBe(502);
+});
+
+it("reports only configured GIF availability without exposing the key", async () => {
+  vi.stubEnv("GIPHY_API_KEY", "");
+  expect(await (await fetch(`${base}/api/gifs/status`)).json()).toEqual({
+    available: false,
+  });
+  const key = randomUUID();
+  vi.stubEnv("GIPHY_API_KEY", key);
+  const response = await fetch(`${base}/api/gifs/status`);
+  expect(response.headers.get("cache-control")).toBe("no-store");
+  expect(await response.json()).toEqual({ available: true });
 });

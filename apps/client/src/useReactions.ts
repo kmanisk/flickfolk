@@ -7,6 +7,16 @@ import {
   type Reaction,
   type ReactionSymbol,
 } from "@watchparty/shared";
+// getRandomValues also works on a plain LAN HTTP origin, unlike randomUUID.
+export function createReactionId(
+  random: Pick<Crypto, "getRandomValues"> &
+    Partial<Pick<Crypto, "randomUUID">> = crypto,
+): string {
+  if (random.randomUUID) return random.randomUUID();
+  return Array.from(random.getRandomValues(new Uint8Array(16)), (value) =>
+    value.toString(16).padStart(2, "0"),
+  ).join("");
+}
 export interface VisibleReaction extends Reaction {
   duration: number;
   drift: number;
@@ -55,13 +65,13 @@ export function useReactions(
     const next: VisibleReaction = {
       ...reaction,
       compact,
-      duration: compact ? 600 : 1400 + Math.round(Math.random() * 400),
+      duration: compact ? 180 : 1400 + Math.round(Math.random() * 400),
       drift: Math.round(Math.random() * 70 - 35),
-      rise: 90 + Math.round(Math.random() * 70),
+      rise: 180 + Math.round(Math.random() * 100),
       rotation: Math.round(Math.random() * 30 - 15),
       slot: Math.round(Math.random() * 80),
     };
-    const survivors = [...values.current.slice(-11), next];
+    const survivors = [...values.current.slice(-29), next];
     for (const item of values.current)
       if (!survivors.includes(item)) {
         clearTimeout(timers.current.get(item.id));
@@ -100,7 +110,7 @@ export function useReactions(
       )
         return;
       cooldown.current = performance.now();
-      const id = crypto.randomUUID();
+      const id = createReactionId();
       show.current({ id, clientId: id, senderId: socket.id!, symbol });
       socket
         .timeout(5000)
@@ -121,9 +131,9 @@ export function useReactions(
         clearTimeout(timers.current.get(item.id));
         timers.current.set(
           item.id,
-          window.setTimeout(() => remove(item.id), 600),
+          window.setTimeout(() => remove(item.id), 180),
         );
-        return { ...item, compact: true, duration: 600 };
+        return { ...item, compact: true, duration: 180 };
       });
       setItems(values.current);
     };

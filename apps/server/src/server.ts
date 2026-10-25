@@ -1,4 +1,5 @@
 import express from "express";
+import compression from "compression";
 import { installGifRoutes } from "./gifs.js";
 import { createLimiter } from "./limits.js";
 import { log } from "./log.js";
@@ -30,6 +31,7 @@ import {
 export function createApp() {
   const app = express();
   app.disable("x-powered-by");
+  app.use(compression());
   app.use((_req, res, next) => {
     res.set("Permissions-Policy", "camera=(), microphone=(self)");
     next();
@@ -329,6 +331,7 @@ export function createApp() {
         const kind = image ? "gif" : "text";
         const content = image ? gifUrl(text) : text;
         room.messages.push({
+          senderId: socket.id,
           id: randomUUID(),
           name: room.participants.find((p) => p.id === socket.id)!.name,
           text: content,
@@ -383,7 +386,7 @@ export function createApp() {
     socket.on("reaction:send", (payload, ack) =>
       guard(ack, () => {
         const room = member();
-        if (!allow(`reaction:${socket.id}`, 5, 2000))
+        if (!allow(`reaction:${socket.id}`, 8, 3000))
           throw new Error("Reactions are too fast.");
         const symbol = cleanReaction(payload?.symbol);
         const clientId = payload.clientId;
@@ -393,14 +396,12 @@ export function createApp() {
             !/^[a-zA-Z0-9_-]{1,64}$/.test(clientId))
         )
           throw new Error("Invalid reaction identifier.");
-        io.volatile
-          .to(room.code)
-          .emit("reaction", {
-            id: randomUUID(),
-            senderId: socket.id,
-            symbol,
-            ...(clientId ? { clientId } : {}),
-          });
+        io.volatile.to(room.code).emit("reaction", {
+          id: randomUUID(),
+          senderId: socket.id,
+          symbol,
+          ...(clientId ? { clientId } : {}),
+        });
       }),
     );
     socket.on("clock", (ack) => {
@@ -409,7 +410,18 @@ export function createApp() {
     socket.on("disconnect", leave);
   });
   const client = fileURLToPath(new URL("../../client/dist/", import.meta.url));
-  app.use(express.static(client));
+  app.use(
+    "/assets",
+    express.static(`${client}/assets`, { immutable: true, maxAge: "1y" }),
+  );
+  app.use(
+    express.static(client, {
+      index: false,
+      setHeaders: (res) => {
+        res.setHeader("Cache-Control", "no-cache");
+      },
+    }),
+  );
   app.get("/{*path}", (req, res) => {
     if (req.path.startsWith("/api/")) {
       res.status(404).json({ error: "Not found" });
@@ -417,7 +429,10 @@ export function createApp() {
     }
     const entry =
       req.path === "/" || /^\/room\/[A-HJ-NP-Z2-9]{6}\/?$/i.test(req.path);
-    res.status(entry ? 200 : 404).sendFile("index.html", { root: client });
+    res
+      .set("Cache-Control", "no-cache")
+      .status(entry ? 200 : 404)
+      .sendFile("index.html", { root: client });
   });
   return {
     app,

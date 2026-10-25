@@ -5,7 +5,7 @@ export function avatarIdentity(name: string) {
     hash = Math.imul(hash ^ char.codePointAt(0)!, 16777619);
   const words = name.trim().split(/\s+/u);
   const initials = (words.length > 1 ? [words[0]!, words.at(-1)!] : words).map((word) => Array.from(word)[0] ?? "").join("").toUpperCase();
-  return { initials: initials || "?", color: (hash >>> 0) % 5 };
+  return { initials: initials || "?", color: (hash >>> 0) % 6 };
 }
 export function emojiOnlyCount(text: string): number {
   const parts = Array.from(new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(text.trim().replace(/\s/gu, "")), (item) => item.segment);

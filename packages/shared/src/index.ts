@@ -20,6 +20,7 @@ export interface Participant {
   name: string;
 }
 export interface Message {
+  senderId?: string;
   kind: "text" | "gif";
   id: string;
   name: string;
@@ -181,3 +182,4 @@ export function validPosition(value: unknown): value is number {
 
 export * from "./presentation.js";
 export * from "./sync.js";
+export * from "./brand.js";

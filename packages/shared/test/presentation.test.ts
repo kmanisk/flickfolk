@@ -5,7 +5,7 @@ describe("shared-room presentation", () => {
     expect(avatarIdentity("Kumar Gaurav")).toEqual(avatarIdentity("Kumar Gaurav"));
     expect(avatarIdentity("Kumar Gaurav").initials).toBe("KG");
     expect(avatarIdentity("Kumar Manisk Gaurav").initials).toBe("KG");
-    expect(avatarIdentity("Sam").color).toBeLessThan(5);
+    expect(avatarIdentity("Sam").color).toBeLessThan(6);
   });
   it("recognizes emoji graphemes without treating digits or mixed text as stickers", () => {
     expect(emojiOnlyCount("\u2764\uFE0F")).toBe(1);

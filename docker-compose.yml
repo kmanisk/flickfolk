@@ -1,5 +1,5 @@
 services:
-  watchparty:
+  flickfolk:
     build: .
     ports:
       - "${PORT:-3001}:3001"

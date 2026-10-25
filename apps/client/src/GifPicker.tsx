@@ -1,11 +1,15 @@
-import { useEffect, useRef, useState } from "react";
+import { X } from "lucide-react";
+import { Button, IconButton, Popover } from "./ui/index.js";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import { gifUrl, type GifResult } from "@watchparty/shared";
 export function GifPicker({
   onSelect,
   onClose,
+  triggerRef,
 }: {
   onSelect: (url: string) => void;
   onClose: () => void;
+  triggerRef?: RefObject<HTMLElement | null>;
 }) {
   const [attempt, setAttempt] = useState(0);
   const [unavailable, setUnavailable] = useState(false);
@@ -13,37 +17,9 @@ export function GifPicker({
   const [items, setItems] = useState<GifResult[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const panel = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLInputElement>(null);
-  const close = useRef(onClose);
-  close.current = onClose;
   useEffect(() => {
     input.current?.focus();
-    const outside = (event: PointerEvent) => {
-      if (
-        event.target instanceof Element &&
-        event.target.closest('button[aria-label="Search GIFs"]')
-      )
-        return;
-      if (
-        event.target instanceof Node &&
-        !panel.current?.contains(event.target)
-      )
-        close.current();
-    };
-    const key = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        event.stopPropagation();
-        close.current();
-      }
-    };
-    document.addEventListener("pointerdown", outside);
-    document.addEventListener("keydown", key, true);
-    return () => {
-      document.removeEventListener("pointerdown", outside);
-      document.removeEventListener("keydown", key, true);
-    };
   }, []);
   useEffect(() => {
     const controller = new AbortController();
@@ -131,25 +107,27 @@ export function GifPicker({
     };
   }, [query, attempt]);
   return (
-    <div
-      ref={panel}
-      className="gif-picker popup-surface"
-      role="dialog"
-      aria-label="GIF picker"
+    <Popover
+      label="GIF picker"
+      onClose={onClose}
+      triggerRef={triggerRef}
+      className="gif-picker"
     >
-      {!unavailable && <div className="gif-picker-search">
-        <input
-          ref={input}
-          aria-label="Search GIFs"
-          maxLength={50}
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search GIFs"
-        />
-        <button aria-label="Close GIF picker" onClick={onClose}>
-          ×
-        </button>
-      </div>}
+      {!unavailable && (
+        <div className="gif-picker-search">
+          <input
+            ref={input}
+            aria-label="Search GIFs"
+            maxLength={50}
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search GIFs"
+          />
+          <IconButton aria-label="Close GIF picker" onClick={onClose}>
+            <X aria-hidden="true" />
+          </IconButton>
+        </div>
+      )}
       {loading ? (
         <div className="gif-skeleton" aria-label="Loading GIFs">
           <i />
@@ -160,12 +138,17 @@ export function GifPicker({
       ) : error ? (
         <p className="gif-status" role="status">
           {error}
-          {!unavailable && <button className="secondary" onClick={() => setAttempt((value) => value + 1)}>Retry</button>}
+          {!unavailable && (
+            <Button onClick={() => setAttempt((value) => value + 1)}>
+              Retry
+            </Button>
+          )}
         </p>
       ) : items.length ? (
         <div className="gif-grid">
           {items.map((gif) => (
-            <button
+            <Button
+              variant="ghost"
               key={gif.id}
               aria-label={`Send ${gif.title || "GIF"}`}
               onClick={() => onSelect(gif.originalUrl)}
@@ -179,20 +162,22 @@ export function GifPicker({
                 decoding="async"
                 referrerPolicy="no-referrer"
               />
-            </button>
+            </Button>
           ))}
         </div>
       ) : (
         <p className="gif-status">No GIFs found.</p>
       )}
-      {!unavailable && <a
-        className="giphy-attribution"
-        href="https://giphy.com"
-        target="_blank"
-        rel="noopener noreferrer"
-      >
-        <img src="/giphy-attribution.png" alt="Powered by GIPHY" />
-      </a>}
-    </div>
+      {!unavailable && (
+        <a
+          className="giphy-attribution"
+          href="https://giphy.com"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <img src="/giphy-attribution.png" alt="Powered by GIPHY" />
+        </a>
+      )}
+    </Popover>
   );
 }

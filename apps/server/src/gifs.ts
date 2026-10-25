@@ -62,7 +62,11 @@ export function installGifRoutes(
   const cache = new Map<string, { expires: number; gifs: GifResult[] }>();
   const inflight = new Map<string, Promise<{ status: number; body: object }>>();
   let cooldown = 0;
-  async function load(kind: "trending" | "search", query: string, limit: number) {
+  async function load(
+    kind: "trending" | "search",
+    query: string,
+    limit: number,
+  ) {
     const key = `${kind}:${query}:${limit}`;
     const cached = cache.get(key);
     if (cached && cached.expires > Date.now())
@@ -93,10 +97,20 @@ export function installGifRoutes(
         if (!response.ok) {
           const raw = (await response.text()).slice(0, 1024);
           const secret = process.env.GIPHY_API_KEY;
-          const body = (secret ? raw.split(secret).join("[redacted]") : raw).replace(/api_key[=": ]+[^\s&"<>]+/gi, "api_key=[redacted]").split("").map((char) => char.charCodeAt(0) < 32 ? " " : char).join("");
+          const body = (secret ? raw.split(secret).join("[redacted]") : raw)
+            .replace(/api_key[=": ]+[^\s&"<>]+/gi, "api_key=[redacted]")
+            .split("")
+            .map((char) => (char.charCodeAt(0) < 32 ? " " : char))
+            .join("");
           log("gif_provider_error", { status: response.status, body });
         }
-        if (response.status === 401 || response.status === 403) return { status: 502, body: { error: "GIF provider rejected its API key. Try again later." } };
+        if (response.status === 401 || response.status === 403)
+          return {
+            status: 502,
+            body: {
+              error: "GIF provider rejected its API key. Try again later.",
+            },
+          };
         if (response.status === 429) {
           cooldown = Date.now() + 30_000;
           return {
@@ -110,9 +124,15 @@ export function installGifRoutes(
           throw new Error("Provider response too large");
         const parsed: unknown = JSON.parse(body);
         const meta = record(record(parsed).meta);
-        if (meta.status !== undefined && meta.status !== 200) throw new Error("Invalid provider status");
+        if (meta.status !== undefined && meta.status !== 200)
+          throw new Error("Invalid provider status");
         const normalized = normalizeGifs(parsed);
-        if (Array.isArray(record(parsed).data) && (record(parsed).data as unknown[]).length && !normalized.length) throw new Error("Malformed provider media");
+        if (
+          Array.isArray(record(parsed).data) &&
+          (record(parsed).data as unknown[]).length &&
+          !normalized.length
+        )
+          throw new Error("Malformed provider media");
         const gifs = normalized.slice(0, limit);
         if (cache.size >= 64) cache.delete(cache.keys().next().value!);
         cache.set(key, { gifs, expires: Date.now() + 30_000 });
@@ -149,19 +169,30 @@ export function installGifRoutes(
       try {
         if (kind === "search") query = gifQuery(req.query.q);
         if (req.query.limit !== undefined) {
-          if (typeof req.query.limit !== "string" || !/^(?:[1-9]|1[0-9]|2[0-4])$/.test(req.query.limit)) throw new Error("Invalid limit");
+          if (
+            typeof req.query.limit !== "string" ||
+            !/^(?:[1-9]|1[0-9]|2[0-4])$/.test(req.query.limit)
+          )
+            throw new Error("Invalid limit");
           limit = Number(req.query.limit);
         }
       } catch {
         res
           .status(400)
-          .json({ error: "Use a 1–50 character search and a limit from 1 to 24." });
+          .json({
+            error: "Use a 1–50 character search and a limit from 1 to 24.",
+          });
         return;
       }
       const result = await load(kind, query, limit);
       if (result.status === 429) res.set("Retry-After", "30");
       res.status(result.status).json(result.body);
     };
+  app.get("/api/gifs/status", (_req, res) => {
+    res
+      .set("Cache-Control", "no-store")
+      .json({ available: Boolean(process.env.GIPHY_API_KEY) });
+  });
   app.get("/api/gifs/trending", route("trending"));
   app.get("/api/gifs/search", route("search"));
 }
