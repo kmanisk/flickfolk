@@ -102,11 +102,13 @@ export function SyncStatusline({
         )}
         <span>{connected ? state : status.toLowerCase()}</span>
         <span data-testid="drift">
-          {host
-            ? "host"
-            : drift === null
-              ? "--"
-              : `${drift >= 0 ? "+" : ""}${(drift / 1000).toFixed(2)}s`}
+          {unavailable
+            ? "--"
+            : host
+              ? "host"
+              : drift === null
+                ? "--"
+                : `${drift >= 0 ? "+" : ""}${(drift / 1000).toFixed(2)}s`}
         </span>
         <span data-testid="rtt">
           {connected && metrics.rttMs !== null

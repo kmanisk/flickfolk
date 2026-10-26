@@ -199,6 +199,11 @@ export default function RoomView({
     setSourceOpen((value) => (room.playback.media ? !value : true));
   }
   const micLabel = !localVoice.joined
+    ? "Enable microphone"
+    : localVoice.muted
+      ? "Unmute microphone"
+      : "Mute microphone";
+  const micText = !localVoice.joined
     ? "Join voice"
     : localVoice.muted
       ? "Muted"
@@ -392,7 +397,7 @@ export default function RoomView({
             ) : (
               <Mic aria-hidden="true" />
             )}
-            <span>{micLabel}</span>
+            <span>{micText}</span>
             {localVoice.joined && !localVoice.muted && <i className="voice-live-dot" aria-hidden="true" />}
           </Button>
           <IconButton

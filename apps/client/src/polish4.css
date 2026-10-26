@@ -269,7 +269,7 @@
   .stage-reaction-tools .mobile-reaction-toggle { display: none; }
 }
 @media (max-width: 767px) {
-  .voice-pill { width: 44px; min-width: 44px; padding: 9px; border-radius: 12px; }
+  .voice-pill { width: 44px; min-width: 44px; min-height: 44px; height: 44px; padding: 9px; border-radius: 12px; }
   .voice-pill span, .voice-live-dot { display: none; }
   .solo-invite-card { margin-inline: 0; }
 }
