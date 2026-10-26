@@ -1680,7 +1680,7 @@ test("focused controls retain global shortcuts while text entry and native keybo
     );
     await expect(page.getByRole("button", { name: "Send message" })).toHaveCSS(
       "background-color",
-      "rgb(255, 122, 89)",
+      "rgb(242, 176, 94)",
     );
     await chat.press("Enter");
     await expect(chat).toHaveValue("");
