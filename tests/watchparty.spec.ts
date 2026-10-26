@@ -1397,14 +1397,11 @@ test("viewport room, grouped chat, rail toggle, keyless GIF and mobile reactions
     );
     await page.setViewportSize({ width: 1366, height: 768 });
     await createRoom(page, false, isolated.origin);
-    await page
-      .context()
-      .grantPermissions(["clipboard-read", "clipboard-write"]);
     const code = new URL(page.url()).pathname.split("/").pop()!;
-    await page.getByRole("button", { name: `Copy room code ${code}` }).click();
-    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
-      code,
-    );
+    await expect(page.getByText(code, { exact: true })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: `Copy room code ${code}` }),
+    ).toHaveCount(0);
     expect(
       await page.evaluate(
         () => document.documentElement.scrollHeight <= innerHeight,
