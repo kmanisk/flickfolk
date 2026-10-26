@@ -85,3 +85,37 @@
   .home-footer { align-items: flex-start; }
   .player-shell.youtube-player .player-controls { padding: 22px 8px 4px; }
 }
+
+
+/* Home desktop: anchor the two columns toward the viewport edges instead of
+   keeping them inside the old 1240px centered island. */
+@media (min-width: 1200px) {
+  .home-page {
+    --home-gutter: clamp(48px, 5vw, 96px);
+  }
+
+  .home-topbar,
+  .home-main {
+    width: 100%;
+    max-width: none;
+    margin-inline: 0;
+    padding-inline: var(--home-gutter);
+  }
+
+  .home-main {
+    grid-template-columns: minmax(440px, 520px) minmax(560px, 680px);
+    justify-content: space-between;
+    column-gap: clamp(64px, 7vw, 160px);
+  }
+
+  .home-intro {
+    width: 100%;
+    justify-self: start;
+  }
+
+  .home-preview {
+    width: 100%;
+    max-width: 680px;
+    justify-self: end;
+  }
+}
