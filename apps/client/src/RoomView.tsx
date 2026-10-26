@@ -3,6 +3,7 @@ import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import {
   Check,
   Copy,
+  Headphones,
   Keyboard,
   Link2,
   LogOut,
@@ -202,6 +203,11 @@ export default function RoomView({
     : localVoice.muted
       ? "Unmute microphone"
       : "Mute microphone";
+  const micText = !localVoice.joined
+    ? "Join voice"
+    : localVoice.muted
+      ? "Muted"
+      : "Mic on";
   const sourceForm = (
     <form
       className="media-form"
@@ -289,6 +295,8 @@ export default function RoomView({
             <IconButton
               ref={keysButton}
               aria-label="Keyboard shortcuts"
+              data-tooltip="Keyboard shortcuts"
+              title="Keyboard shortcuts"
               aria-expanded={popup === "keys"}
               onClick={() => setPopup(popup === "keys" ? null : "keys")}
             >
@@ -326,6 +334,8 @@ export default function RoomView({
             <IconButton
               ref={settingsButton}
               aria-label="Audio settings"
+              data-tooltip="Settings"
+              title="Settings"
               aria-expanded={popup === "settings"}
               onClick={() => setPopup(popup === "settings" ? null : "settings")}
             >
@@ -372,22 +382,29 @@ export default function RoomView({
               </Popover>
             )}
           </div>
-          <IconButton
-            className={`mic-button ${localVoice.speaking ? "is-speaking" : ""}`}
+          <Button
+            className={`voice-pill ${localVoice.speaking ? "is-speaking" : ""} ${localVoice.joined && !localVoice.muted ? "is-live" : ""}`}
+            variant="ghost"
             aria-label={micLabel}
             aria-pressed={localVoice.joined && !localVoice.muted}
             disabled={!connected || voice?.busy}
             onClick={() => mic(true)}
           >
-            {localVoice.joined && !localVoice.muted ? (
-              <Mic aria-hidden="true" />
-            ) : (
+            {!localVoice.joined ? (
+              <Headphones aria-hidden="true" />
+            ) : localVoice.muted ? (
               <MicOff aria-hidden="true" />
+            ) : (
+              <Mic aria-hidden="true" />
             )}
-          </IconButton>
+            <span>{micText}</span>
+            {localVoice.joined && !localVoice.muted && <i className="voice-live-dot" aria-hidden="true" />}
+          </Button>
           <IconButton
             className="leave-button"
             aria-label="Leave room"
+            data-tooltip="Leave room"
+            title="Leave room"
             onClick={() => {
               voiceRef.current?.stop();
               leave();
@@ -524,6 +541,8 @@ export default function RoomView({
               visible={tab === "chat" && !collapsed}
               selfId={socket.id}
               onCopyInvite={() => void copy()}
+              participantCount={room.participants.length}
+              roomCode={room.code}
             />
           </div>
         </aside>
@@ -533,6 +552,7 @@ export default function RoomView({
         connected={connected}
         status={status}
         phase={metrics.state}
+        host={host}
         debug={new URLSearchParams(location.search).get("debug") === "1"}
         onSource={host ? openSource : undefined}
         sourceOpen={sourceOpen && host}

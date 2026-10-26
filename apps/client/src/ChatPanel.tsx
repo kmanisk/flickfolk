@@ -9,6 +9,7 @@ import {
   SmilePlus,
 } from "lucide-react";
 import { Button, IconButton } from "./ui/index.js";
+import { SoloInviteCard } from "./SoloInviteCard.js";
 const GifPicker = lazy(() =>
   import("./GifPicker.js").then((module) => ({ default: module.GifPicker })),
 );
@@ -39,10 +40,14 @@ export function ChatPanel({
   visible,
   selfId,
   onCopyInvite,
+  participantCount,
+  roomCode,
 }: {
   visible: boolean;
   selfId?: string;
   onCopyInvite: () => void;
+  participantCount: number;
+  roomCode: string;
   messages: Message[];
   connected: boolean;
   inputRef: React.RefObject<HTMLTextAreaElement | null>;
@@ -184,6 +189,7 @@ export function ChatPanel({
           }
         }}
       >
+        <SoloInviteCard roomCode={roomCode} visible={participantCount === 1} />
         {!messages.length && (
           <div className="empty-chat">
             <span className="empty-chat-icon">
@@ -449,7 +455,7 @@ const ChatMessageRow = memo(
             <strong>{message.name}</strong>
             <time dateTime={new Date(message.at).toISOString()}>
               {new Date(message.at).toLocaleTimeString([], {
-                hour: "2-digit",
+                hour: "numeric",
                 minute: "2-digit",
               })}
             </time>

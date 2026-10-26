@@ -9,7 +9,7 @@ import {
 import { clockSync, syncStore, subscribeResync } from "./lib/syncRuntime.js";
 import { ActiveSpeakers, type Speaker } from "./ActiveSpeakers.js";
 import type { AudioLevels } from "./AudioLevels.js";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { ReactionOverlay } from "./ReactionOverlay.js";
 import { useDucking } from "./useDucking.js";
 import type { VisibleReaction } from "./useReactions.js";
@@ -692,11 +692,11 @@ export function Player({
           <>
             <IconButton
               className="icon-button"
-              aria-label={muted ? "Unmute" : "Mute"}
+              aria-label={muted || volume.baseVolume <= 0.001 ? "Unmute" : "Mute"}
               onClick={toggleMute}
               disabled={!media || !ready}
             >
-              {muted ? (
+              {muted || volume.baseVolume <= 0.001 ? (
                 <VolumeX aria-hidden="true" />
               ) : (
                 <Volume2 aria-hidden="true" />
@@ -710,6 +710,7 @@ export function Player({
               max="1"
               step="0.01"
               value={volume.baseVolume}
+              style={{ "--volume": `${Math.round(volume.baseVolume * 100)}%` } as CSSProperties}
               onChange={(event) => volume.choose(Number(event.target.value))}
               disabled={!media || !ready}
             />
