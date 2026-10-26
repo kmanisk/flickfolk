@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { normalizeCode, REACTIONS } from "@watchparty/shared";
 import { AccentPicker, Avatar, Brand, Button, Chip } from "./ui/index.js";
+import { GitHubIcon } from "./ui/GitHubIcon.js";
 import type { RoomLookup } from "./useRoomLookup.js";
 interface HomeProps {
   name: string;
@@ -44,7 +45,7 @@ export function Home({
   const lookupText = invalid
     ? "Room not found. Check the code."
     : lookup.state === "tuning"
-      ? "Checking…"
+      ? "Checkingâ¦"
       : lookup.state === "found"
         ? "Room found"
         : "waiting";
@@ -65,13 +66,23 @@ export function Home({
             {status}
           </span>
           <AccentPicker />
+          <a
+            className="button button-ghost icon-button"
+            href="https://github.com/kmanisk/flickfolk"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="GitHub"
+            title="GitHub"
+          >
+            <GitHubIcon />
+          </a>
         </div>
       </header>
       {notFound ? (
         <main className="no-signal">
           <Chip>Room not found</Chip>
           <h1>Room not found.</h1>
-          <p>That room is off the map. Let’s find your people.</p>
+          <p>That room is off the map. Letâs find your people.</p>
           <Button variant="primary" onClick={goHome}>
             Back home
             <ArrowRight aria-hidden="true" />
@@ -115,12 +126,12 @@ export function Home({
                   type="submit"
                   disabled={!connected || busy}
                 >
-                  {busy ? "Finding your seats…" : "Start a room"}
+                  {busy ? "Finding your seatsâ¦" : "Start a room"}
                   <ArrowRight aria-hidden="true" />
                 </Button>
               </form>
               <div className="join-divider">
-                <span>or join a friend’s room</span>
+                <span>or join a friendâs room</span>
               </div>
               <label htmlFor="room-code">Room code or invite link</label>
               <div className={`join-row ${invalid ? "is-invalid" : ""}`}>
@@ -219,7 +230,7 @@ export function Home({
                   </div>
                   <div className="preview-compose">
                     <SmilePlus />
-                    <span>Message…</span>
+                    <span>Messageâ¦</span>
                     <ArrowRight />
                   </div>
                 </div>
@@ -246,12 +257,6 @@ export function Home({
           </section>
         </main>
       )}
-      <footer className="home-footer">
-        <span>Built with React, Socket.IO & WebRTC</span>
-        <a href="https://github.com/kmanisk/flickfolk" target="_blank" rel="noopener noreferrer">
-          Source ↗
-        </a>
-      </footer>
     </div>
   );
 }
