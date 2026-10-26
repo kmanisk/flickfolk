@@ -2,7 +2,6 @@ import { registerShortcuts } from "./lib/shortcuts.js";
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import {
   Check,
-  Copy,
   Headphones,
   Keyboard,
   Link2,
@@ -257,26 +256,6 @@ export default function RoomView({
             leave();
           }}
         />
-        <div className="room-identity" aria-label={`Room ${room.code}`}>
-          <span className="room-identity-label">ROOM</span>
-          <button
-            type="button"
-            className={`room-code-compact${copied === "code" ? " is-copied" : ""}`}
-            onClick={() => void copy(true)}
-            aria-label={
-              copied === "code"
-                ? "Room code copied"
-                : `Copy room code ${room.code}`
-            }
-          >
-            <span>{room.code}</span>
-            {copied === "code" ? (
-              <Check aria-hidden="true" />
-            ) : (
-              <Copy aria-hidden="true" />
-            )}
-          </button>
-        </div>
         <div className="topbar-actions">
           <Button
             className="invite-button"
