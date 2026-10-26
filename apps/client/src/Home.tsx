@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { normalizeCode, REACTIONS } from "@watchparty/shared";
 import { AccentPicker, Avatar, Brand, Button, Chip } from "./ui/index.js";
+import { GitHubIcon } from "./ui/GitHubIcon.js";
 import type { RoomLookup } from "./useRoomLookup.js";
 interface HomeProps {
   name: string;
@@ -65,6 +66,16 @@ export function Home({
             {status}
           </span>
           <AccentPicker />
+          <a
+            className="button button-ghost icon-button"
+            href="https://github.com/kmanisk/flickfolk"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="GitHub"
+            title="GitHub"
+          >
+            <GitHubIcon />
+          </a>
         </div>
       </header>
       {notFound ? (
@@ -246,12 +257,6 @@ export function Home({
           </section>
         </main>
       )}
-      <footer className="home-footer">
-        <span>Built with React, Socket.IO & WebRTC</span>
-        <a href="https://github.com/kmanisk/flickfolk" target="_blank" rel="noopener noreferrer">
-          Source ↗
-        </a>
-      </footer>
     </div>
   );
 }
