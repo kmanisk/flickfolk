@@ -1,4 +1,5 @@
 import { registerShortcuts } from "./lib/shortcuts.js";
+import { endedOverlayMode } from "./lib/playerUi.js";
 import { PlaybackEngine } from "./lib/playbackEngine.js";
 import {
   html5Adapter,
@@ -19,6 +20,7 @@ import {
   Minimize,
   Pause,
   Play,
+  RotateCcw,
   SmilePlus,
   Volume2,
   VolumeX,
@@ -142,6 +144,8 @@ export function Player({
   const [error, setError] = useState("");
   const [blocked, setBlocked] = useState(false);
   const [muted, setMuted] = useState(false);
+  const [ended, setEnded] = useState(false);
+  const endMode = endedOverlayMode(ended, host);
   const media = playback.media;
   const caps = media ? mediaCapabilities(media) : null;
   const volume = useDucking(
@@ -160,6 +164,7 @@ export function Player({
     setReady(false);
     setError("");
     setBlocked(false);
+    setEnded(false);
     position.current = 0;
     duration.current = 0;
     if (currentTimeLabel.current)
@@ -192,7 +197,12 @@ export function Player({
           },
           events: {
             onStateChange: (event) => {
-              if (event.data === 1 && !disposed) started.current();
+              if (disposed) return;
+              if (event.data === 0) setEnded(true);
+              if (event.data === 1) {
+                setEnded(false);
+                started.current();
+              }
             },
             onReady: () => {
               if (!disposed) setReady(true);
@@ -341,6 +351,9 @@ export function Player({
   useEffect(() => {
     engine.current?.receive(playback);
   }, [playback]);
+  useEffect(() => {
+    if (playback.playing) setEnded(false);
+  }, [playback.playing, playback.revision]);
   function issue(action: Action, target: number) {
     const accepted =
       action === "seek"
@@ -440,7 +453,7 @@ export function Player({
   }
   return (
     <div
-      className={`player-shell ${effects ? "fx-on" : "fx-off"} ${media?.kind === "youtube" ? "youtube-player" : ""} ${controlsVisible || !playback.playing ? "controls-visible" : ""}`}
+      className={`player-shell ${effects ? "fx-on" : "fx-off"} ${media?.kind === "youtube" ? "youtube-player" : ""} ${controlsVisible || !playback.playing || ended ? "controls-visible" : ""} ${ended ? "is-ended" : ""}`}
       ref={shell}
       onPointerEnter={showControls}
       onPointerMove={showControls}
@@ -475,7 +488,11 @@ export function Player({
             preload="auto"
             className={media.kind === "audio" ? "audio-source" : undefined}
             onLoadedMetadata={() => setReady(true)}
-            onPlaying={() => started.current()}
+            onPlaying={() => {
+              setEnded(false);
+              started.current();
+            }}
+            onEnded={() => setEnded(true)}
             onError={() =>
               setError(
                 "Video could not load. Check the URL, codec and server access.",
@@ -523,6 +540,26 @@ export function Player({
           <Button className="player-notice enable" onClick={enable}>
             Click to enable playback
           </Button>
+        )}
+        {endMode !== "hidden" && media && ready && !error && (
+          <div className="ended-overlay" role="status">
+            <strong>That’s the end.</strong>
+            {endMode === "restart" ? (
+              <Button
+                variant="primary"
+                onClick={() => {
+                  setEnded(false);
+                  issue("seek", 0);
+                  window.setTimeout(() => issue("play", 0), 0);
+                }}
+              >
+                <RotateCcw aria-hidden="true" />
+                Watch again
+              </Button>
+            ) : (
+              <span>Waiting for the host</span>
+            )}
+          </div>
         )}
       </div>
       <div className={`stage-reaction-tools ${reactionOpen ? "is-open" : ""}`}>

@@ -8,13 +8,14 @@ import {
   type ReactNode,
   type RefObject,
 } from "react";
-import { Palette } from "lucide-react";
+import { Check, Palette } from "lucide-react";
 import { avatarIdentity, brand } from "@watchparty/shared";
 import type { AudioLevels } from "../AudioLevels.js";
 import {
   ACCENT_PRESETS,
   ACCENT_STORAGE_KEY,
   currentAccent,
+  resetAccent,
   saveAccent,
 } from "../accent.js";
 export const Button = forwardRef<
@@ -81,13 +82,16 @@ export function BrandMark({ className = "" }: { className?: string }) {
   return (
     <svg
       className={`brand-mark-icon ${className}`}
-      viewBox="0 0 24 18"
-      shapeRendering="crispEdges"
+      viewBox="0 0 24 24"
       aria-hidden="true"
     >
       <path
-        fill="currentColor"
-        d="M1 2h9v3H4v3h5v3H4v5H1V2Zm12 0h9v3h-6v3h5v3h-5v5h-3V2Z"
+        className="brand-mark-back"
+        d="M8 5.8c0-1.5 1.7-2.4 2.9-1.6l9 5.8c1.2.8 1.2 2.6 0 3.4l-9 5.8C9.7 20 8 19.1 8 17.6Z"
+      />
+      <path
+        className="brand-mark-front"
+        d="M3 7.3c0-1.5 1.7-2.4 2.9-1.6l8 5.1c1.2.8 1.2 2.6 0 3.4l-8 5.1C4.7 20.1 3 19.2 3 17.7Z"
       />
     </svg>
   );
@@ -115,7 +119,21 @@ export function Brand({ onClick }: { onClick?: () => void }) {
   );
 }
 
-function AccentOptions({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+function AccentOptions({
+  value,
+  onChange,
+  onReset,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  onReset: () => void;
+}) {
+  const [draft, setDraft] = useState(value.toUpperCase());
+  useEffect(() => setDraft(value.toUpperCase()), [value]);
+  const commitDraft = () => {
+    if (/^#[0-9a-f]{6}$/i.test(draft)) onChange(draft);
+    else setDraft(value.toUpperCase());
+  };
   return (
     <div className="accent-control">
       <div className="accent-control-header">
@@ -134,18 +152,43 @@ function AccentOptions({ value, onChange }: { value: string; onChange: (value: s
             title={option.name}
             style={{ "--swatch": option.value } as React.CSSProperties}
             onClick={() => onChange(option.value)}
-          />
+          >
+            {value === option.value && <Check aria-hidden="true" />}
+          </button>
         ))}
       </div>
-      <label className="accent-custom">
-        <span>Custom</span>
+      <div className="accent-custom">
+        <label htmlFor="accent-custom-color">Custom</label>
         <input
+          id="accent-custom-color"
           type="color"
           aria-label="Custom accent color"
           value={value}
           onChange={(event) => onChange(event.target.value)}
         />
+      </div>
+      <label className="accent-hex-row">
+        <span>Hex</span>
+        <input
+          className="accent-hex"
+          aria-label="Accent hex color"
+          value={draft}
+          maxLength={7}
+          spellCheck={false}
+          onChange={(event) => setDraft(event.target.value)}
+          onBlur={commitDraft}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              commitDraft();
+            }
+            if (event.key === "Escape") setDraft(value.toUpperCase());
+          }}
+        />
       </label>
+      <Button variant="ghost" className="accent-reset" onClick={onReset}>
+        Reset to amber
+      </Button>
     </div>
   );
 }
@@ -167,7 +210,8 @@ export function AccentPicker({ inline = false }: { inline?: boolean }) {
     };
   }, []);
   const choose = (value: string) => setAccentState(saveAccent(value));
-  if (inline) return <AccentOptions value={accent} onChange={choose} />;
+  const reset = () => setAccentState(resetAccent());
+  if (inline) return <AccentOptions value={accent} onChange={choose} onReset={reset} />;
   return (
     <div className="popover-anchor accent-picker-anchor">
       <IconButton
@@ -187,7 +231,7 @@ export function AccentPicker({ inline = false }: { inline?: boolean }) {
           onClose={() => setOpen(false)}
           triggerRef={trigger}
         >
-          <AccentOptions value={accent} onChange={choose} />
+          <AccentOptions value={accent} onChange={choose} onReset={reset} />
         </Popover>
       )}
     </div>

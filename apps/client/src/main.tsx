@@ -20,6 +20,7 @@ import { Toast } from "./ui/index.js";
 import { useRoomLookup } from "./useRoomLookup.js";
 import { loadAccent } from "./accent.js";
 import "./style.css";
+import "./polish4.css";
 loadAccent();
 const RoomView = lazy(() => import("./RoomView.js"));
 const socket: Socket<ServerEvents, ClientEvents> = io({
