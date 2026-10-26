@@ -6,9 +6,9 @@ pass; use the explicit specification without claiming a pixel match.
 
 ## Tokens
 bg #120f10; panel #1b1819; raised #242021; line #2e2a2b.
-text #f5efe8; muted #a8a09a; accent #ff7a59; accent text #1a0d0b.
+text #f5efe8; muted #a8a09a. Accent is user-selectable; default amber #f2b05e.
 online #3ddc84; danger #e5484d.
-Coral is the only normal accent. Danger is reserved for errors/destructive hover.
+Accent is limited to primary actions, active tabs, focus, media progress, own-message tint and selected reaction state. Online/synced and danger are semantic and never inherit the accent.
 Figtree Variable for all UI. JetBrains Mono only for room codes and sync numbers.
 Self-host Fontsource latin normal subsets, font-display swap. UI 14–16px, never
 below 13px. Timestamps/telemetry use tabular numerals.
@@ -19,7 +19,7 @@ Lucide icons: individual imports, 20px, strokeWidth 1.75. No Unicode UI icons.
 ## Primitives and presence
 Use the existing workspace paths: `apps/client/src/ui`, `packages/shared/src/brand.ts`.
 Button, IconButton, Chip, Tabs, Tooltip, Toast, Avatar, AvatarStack, Popover, Kbd.
-One coral focus ring; controls 40px desktop, at least 44px mobile.
+One accent focus ring; controls 40px desktop, at least 44px mobile.
 Name-hashed initials palette: #ff8a6b, #f2b05e, #7cc6a4, #7aa8e6, #c49be8, #e88fb3.
 Dark initials, online dot, truthful mic/host state. Speaking rings require measured
 voice activity. Keep active-speaker overlays inside the fullscreen stage.
@@ -29,7 +29,7 @@ At >=1024px, a 100dvh grid: topbar 56px, main minmax(0,1fr), bottom bar 56px.
 No page scroll. Rail width clamp(320px,20vw,380px); collapsed rail 56px.
 Topbar: Flickfolk, room/copy, avatar stack, Invite, shortcuts, settings, mic, leave.
 No duplicate title row or participant strip. Leave is ghost, danger only on hover.
-Stage uses panel background, centered contain video, static 8% coral glow and
+Stage uses panel background, centered contain video, static 8% accent glow and
 overlay controls. No heading row. Controls hide after 2.5s while playing and idle.
 Only the bottom source chip opens the host URL popover; guest source is read-only.
 Only the bottom connection chip indicates sync. Volume is secondary to the scrubber.
@@ -64,7 +64,7 @@ Lazy Room, voice, GIF and provider APIs. No animation library or UI framework.
 Only text-entry contexts suppress shortcuts. Focus rings use focus-visible only.
 Verify lint/typecheck/unit/build/browser. Current pass does not deploy.
 
-Home: one GitHub icon, no Source links or Effects. Rooms remain signup-free.
+Home: no header repository link or Effects; one footer Source ↗ link. Rooms remain signup-free.
 Source popover: compact detected provider icon/name, paste URL first. Live sources
 show LIVE; unavailable seek/duration/volume controls stay hidden. Limited embeds
 never claim timeline sync. Room Effects appears only after actual loaded playback.

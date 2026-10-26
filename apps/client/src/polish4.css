@@ -1,0 +1,87 @@
+:root {
+  --accent: #f2b05e;
+  --accent-hover: color-mix(in oklab, var(--accent) 86%, white);
+  --accent-soft: color-mix(in oklab, var(--accent) 14%, var(--panel));
+}
+.button-primary:hover:not(:disabled) { background: var(--accent-hover); }
+
+/* Accent is interaction, not status or decoration. */
+.home-eyebrow .coral-dot { background: var(--muted); }
+.connection.online, .connection.online svg { color: var(--online); }
+.preview-footnotes svg,
+.preview-timeline svg,
+.preview-caption svg { color: var(--muted); }
+.sync-live .sync-dot,
+.sync-limited .sync-dot,
+.sync-embed .sync-dot { background: var(--online); }
+
+.brand-mark { color: var(--text); }
+.brand:hover .brand-mark,
+.brand:focus-visible .brand-mark { color: var(--text); }
+.brand-mark-back { fill: var(--text); opacity: .9; }
+.brand-mark-front { fill: var(--accent); }
+.brand-mark-icon { width: 28px; height: 28px; }
+
+.accent-swatches { grid-template-columns: repeat(5, 1fr); }
+.accent-swatch { display: grid; place-items: center; color: #120f10; }
+.accent-swatch svg { width: 16px; height: 16px; stroke-width: 2.4; }
+.accent-swatch[aria-checked="true"] { outline-color: var(--text); }
+.accent-hex-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--muted); font-size: 13px; }
+.accent-hex { width: 108px; min-height: 34px; padding: 6px 9px; font: 12px var(--mono); text-transform: uppercase; }
+.accent-reset { justify-content: flex-start; padding-inline: 0; min-height: 34px; }
+
+.preview-topbar-code-only { justify-content: flex-end; }
+.preview-play { background: var(--accent); color: var(--accent-text); }
+.home-footer { display: flex; justify-content: space-between; align-items: center; gap: 20px; }
+.home-footer a { color: var(--muted); padding: 8px 0; }
+.home-footer a:hover, .home-footer a:focus-visible { color: var(--text); }
+
+/* Room geometry: full stage, bounded rail, overlay controls for every provider. */
+.room-main { grid-template-columns: minmax(0, 1fr) clamp(320px, 20vw, 380px); }
+.player-shell.youtube-player { --youtube-control-strip: 0px; }
+.player-shell.youtube-player .screen { inset: 0; bottom: 0; }
+.player-shell.youtube-player .player-controls {
+  min-height: 0;
+  padding: 28px 12px 10px;
+  border-top: 0;
+  background: linear-gradient(transparent, #080707ed);
+  opacity: 0;
+  pointer-events: none;
+}
+.player-shell.youtube-player.controls-visible .player-controls,
+.player-shell.youtube-player:focus-within .player-controls,
+.player-shell.youtube-player.is-ended .player-controls {
+  opacity: 1;
+  pointer-events: auto;
+}
+.screen video,
+.youtube-mount,
+.youtube-mount iframe { object-fit: contain; }
+
+.ended-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 14;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: linear-gradient(#120f1024, #120f10c7);
+  color: var(--text);
+  text-align: center;
+  pointer-events: none;
+}
+.ended-overlay strong { font-size: 18px; }
+.ended-overlay .button { pointer-events: auto; }
+.ended-overlay span { color: var(--muted); }
+
+.message.is-self .message-content > p:not(.emoji-message) {
+  background: var(--accent-soft);
+  color: var(--text);
+}
+
+@media (max-width: 767px) {
+  .home-footer { align-items: flex-start; }
+  .player-shell.youtube-player .player-controls { padding: 22px 8px 4px; }
+}

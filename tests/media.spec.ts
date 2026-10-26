@@ -105,27 +105,23 @@ async function values(page: Page) {
     return state;
   });
 }
-test("Home has one GitHub link, no auth, no effects; local identity still creates rooms", async ({
+test("Home has one footer source link, no auth, no effects; local identity still creates rooms", async ({
   page,
 }) => {
   const { app } = await room(page);
   try {
     await page.getByRole("button", { name: "Leave room" }).click();
-    await expect(
-      page.getByRole("link", { name: "GitHub", exact: true }),
-    ).toHaveAttribute("href", "https://github.com/kmanisk/flickfolk");
-    await expect(
-      page.getByRole("link", { name: "GitHub", exact: true }),
-    ).toHaveAttribute("target", "_blank");
-    await expect(page.getByRole("link", { name: /Source/ })).toHaveCount(0);
+    const source = page.getByRole("contentinfo").getByRole("link", { name: /Source/ });
+    await expect(source).toHaveCount(1);
+    await expect(source).toHaveAttribute("href", "https://github.com/kmanisk/flickfolk");
+    await expect(source).toHaveAttribute("target", "_blank");
+    await expect(page.getByRole("link", { name: "GitHub", exact: true })).toHaveCount(0);
     await expect(
       page.getByRole("button", {
         name: /Effects|Sign in|Continue anonymously/i,
       }),
     ).toHaveCount(0);
-    await expect(page.getByRole("contentinfo").getByRole("link")).toHaveCount(
-      0,
-    );
+    await expect(page.getByRole("contentinfo").getByRole("link")).toHaveCount(1);
     await page.reload();
     await expect(page.getByLabel("What should we call you?")).toHaveValue(
       "Alex",

@@ -1,4 +1,3 @@
-import { GitHubIcon } from "./ui/GitHubIcon.js";
 import {
   ArrowRight,
   Film,
@@ -10,8 +9,8 @@ import {
   Wifi,
   WifiOff,
 } from "lucide-react";
-import { brand, normalizeCode, REACTIONS } from "@watchparty/shared";
-import { AccentPicker, Avatar, Brand, BrandMark, Button, Chip } from "./ui/index.js";
+import { normalizeCode, REACTIONS } from "@watchparty/shared";
+import { AccentPicker, Avatar, Brand, Button, Chip } from "./ui/index.js";
 import type { RoomLookup } from "./useRoomLookup.js";
 interface HomeProps {
   name: string;
@@ -66,16 +65,6 @@ export function Home({
             {status}
           </span>
           <AccentPicker />
-          <a
-            className="button button-ghost icon-button"
-            href="https://github.com/kmanisk/flickfolk"
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label="GitHub"
-            title="GitHub"
-          >
-            <GitHubIcon />
-          </a>
         </div>
       </header>
       {notFound ? (
@@ -182,14 +171,9 @@ export function Home({
           <section className="home-preview" aria-hidden="true">
             <div className="preview-caption">
               <span>A place to press play, together.</span>
-              <Film />
             </div>
             <div className="preview-shell">
-              <div className="preview-topbar">
-                <span className="preview-brand">
-                  <BrandMark className="preview-brand-mark" />
-                  {brand.productName}
-                </span>
+              <div className="preview-topbar preview-topbar-code-only">
                 <Chip className="room-code">
                   {normalizeCode(code).slice(0, 6) || "YOUR ROOM"}
                 </Chip>
@@ -264,6 +248,9 @@ export function Home({
       )}
       <footer className="home-footer">
         <span>Built with React, Socket.IO & WebRTC</span>
+        <a href="https://github.com/kmanisk/flickfolk" target="_blank" rel="noopener noreferrer">
+          Source ↗
+        </a>
       </footer>
     </div>
   );
