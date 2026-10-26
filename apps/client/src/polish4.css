@@ -138,6 +138,8 @@
   .screen { background: #000; }
 }
 .room-main { grid-template-columns: minmax(0, 1fr) clamp(320px, 20vw, 380px) !important; }
+.rail-collapsed .room-main { grid-template-columns: minmax(0, 1fr) 56px !important; }
+.rail-collapsed .social-column { width: 56px; max-width: 56px; }
 .social-column { width: auto; max-width: 380px; }
 .room-identity-label { color: #b7ada7; }
 .avatar-tone-2 { background: #d99572; }
