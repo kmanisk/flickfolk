@@ -10,6 +10,7 @@ export function SyncStatusline({
   connected,
   status,
   phase,
+  host,
   debug,
   onSource,
   sourceOpen,
@@ -21,6 +22,7 @@ export function SyncStatusline({
   connected: boolean;
   status: string;
   phase: PlaybackMetrics["state"];
+  host: boolean;
   debug: boolean;
   onSource?: () => void;
   sourceOpen?: boolean;
@@ -89,6 +91,7 @@ export function SyncStatusline({
       <Chip
         role="status"
         aria-label="Connection"
+        title="Drift: how far your playback is from the host. RTT: round trip to the server."
         className={`connection-chip sync-${state}`}
       >
         <span className="sync-dot" />
@@ -99,9 +102,11 @@ export function SyncStatusline({
         )}
         <span>{connected ? state : status.toLowerCase()}</span>
         <span data-testid="drift">
-          {drift === null
-            ? "--"
-            : `${drift >= 0 ? "+" : ""}${(drift / 1000).toFixed(2)}s`}
+          {host
+            ? "host"
+            : drift === null
+              ? "--"
+              : `${drift >= 0 ? "+" : ""}${(drift / 1000).toFixed(2)}s`}
         </span>
         <span data-testid="rtt">
           {connected && metrics.rttMs !== null
