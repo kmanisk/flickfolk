@@ -45,7 +45,7 @@ export function Home({
   const lookupText = invalid
     ? "Room not found. Check the code."
     : lookup.state === "tuning"
-      ? "Checkingâ¦"
+      ? "Checking…"
       : lookup.state === "found"
         ? "Room found"
         : "waiting";
@@ -82,7 +82,7 @@ export function Home({
         <main className="no-signal">
           <Chip>Room not found</Chip>
           <h1>Room not found.</h1>
-          <p>That room is off the map. Letâs find your people.</p>
+          <p>That room is off the map. Let’s find your people.</p>
           <Button variant="primary" onClick={goHome}>
             Back home
             <ArrowRight aria-hidden="true" />
@@ -126,12 +126,12 @@ export function Home({
                   type="submit"
                   disabled={!connected || busy}
                 >
-                  {busy ? "Finding your seatsâ¦" : "Start a room"}
+                  {busy ? "Finding your seats…" : "Start a room"}
                   <ArrowRight aria-hidden="true" />
                 </Button>
               </form>
               <div className="join-divider">
-                <span>or join a friendâs room</span>
+                <span>or join a friend’s room</span>
               </div>
               <label htmlFor="room-code">Room code or invite link</label>
               <div className={`join-row ${invalid ? "is-invalid" : ""}`}>
@@ -230,7 +230,7 @@ export function Home({
                   </div>
                   <div className="preview-compose">
                     <SmilePlus />
-                    <span>Messageâ¦</span>
+                    <span>Message…</span>
                     <ArrowRight />
                   </div>
                 </div>
