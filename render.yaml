@@ -1,4 +1,4 @@
-# Deployment preparation only. One instance owns the in-memory rooms.
+# Existing Flickfolk service. One instance owns the in-memory rooms.
 services:
   - type: web
     name: flickfolk

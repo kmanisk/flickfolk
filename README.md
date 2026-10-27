@@ -4,12 +4,51 @@
 
 A signup-free shared watch room with synchronized media playback, peer-to-peer
 voice, live reactions and collaborative chat. The Warm Dusk interface uses local
-Figtree/JetBrains Mono fonts, coral controls and deterministic initials avatars.
+Figtree/JetBrains Mono fonts, configurable accent controls and deterministic initials avatars.
 No accounts, camera, database or paid service are required for the core app.
 
 **Live:** [flickfolk.onrender.com](https://flickfolk.onrender.com)
 
 [Live app](https://flickfolk.onrender.com) · [Source](https://github.com/kmanisk/flickfolk) · [Deployment guide](DEPLOY.md) · [Design](DESIGN.md)
+
+## Try it in 60 seconds
+
+1. Open Window A and enter a display name. Start a room.
+2. Copy the invite and join from Window B/incognito with another name.
+3. In A, use the bottom source chip to load a YouTube URL. Press Play.
+4. In B, playback controls are restricted. Open Requests and choose Request pause.
+5. In A, open Requests and approve. Both players pause.
+6. In A, open People, manage B and choose Make moderator.
+7. In B, play/pause/seek directly; A follows the authoritative timeline.
+8. In A, manage B and remove them, confirming the action.
+9. B sees the removal screen; refreshing cannot automatically rejoin. Back home
+   allows an intentional fresh join. No account is required.
+
+## Roles and participant requests
+
+| Capability | Host | Moderator | Participant |
+| --- | --- | --- | --- |
+| Play/pause | Direct | Direct | Request |
+| Seek | Direct | Direct | Request |
+| Change video | Direct | Direct | Request |
+| Approve requests | Yes | Yes | No |
+| Assign roles | Yes | No | No |
+| Remove users | Yes | No | No |
+| Chat | Yes | Yes | Yes |
+| Reactions | Yes | Yes | Yes |
+| Voice | Yes | Yes | Yes |
+
+The server reads roles from its own participant state on every privileged command.
+UI checks explain permissions; they provide no security boundary. Provider capability
+restrictions apply to every role, including approved requests. Reviewers receive a
+private queue: at most three pending requests per participant, one per action, for
+60 seconds. A playback revision/source change, departure or role change invalidates
+stale requests. Approvals use exactly the same mutation path as direct controls.
+The host can promote/demote and kick. Removal is a kick, not a permanent ban.
+Host failover prefers the first Moderator, then the first Participant. Socket
+replacement preserves roles; reconnect within 30s restores a Moderator/Participant
+role while the room exists. A departed Host returns as Moderator after failover,
+so the new Host retains authority and there is always exactly one Host.
 
 ## Development
 
@@ -45,7 +84,7 @@ in-memory rooms and no persistence: restarting loses rooms, messages and invites
 ## What works
 
 - Create/join by six-character code or invite URL, with debounced room lookup.
-- Host-authoritative timeline controls for YouTube, direct video/audio, Twitch VOD and SoundCloud.
+- Server-authoritative Host/Moderator timeline controls for YouTube, direct video/audio, Twitch VOD and SoundCloud.
 - Capability-aware Twitch live, Spotify and Kick embeds without invented timeline sync.
 - Late joins, reconnect identity where Socket.IO recovery is available, host promotion.
 - Audio-only WebRTC voice with actual RMS speaking rings and a fullscreen speaker overlay.
@@ -61,6 +100,7 @@ hidden. Validated direct image/GIF links remain available under the emoji picker
 ## Screenshots
 
 ![Flickfolk Home at 1366×768](docs/screenshots/home-1366.png)
+![Flickfolk Home at 390×844](docs/screenshots/home-390.png)
 ![Flickfolk Room at 1366×768](docs/screenshots/room-1366.png)
 ![Flickfolk Room at 390×844](docs/screenshots/room-390.png)
 
@@ -78,6 +118,46 @@ The server serves the built client in production. Hashed assets have one-year
 immutable caching; HTML is revalidated. Compression and Helmet CSP are enabled.
 The UI uses Lucide individual imports and self-hosted Fontsource latin fonts.
 
+### WebSocket flow
+
+```mermaid
+sequenceDiagram
+    participant P as Participant
+    participant S as Socket.IO Server
+    participant H as Host / Moderator
+    P->>S: room:join
+    S-->>P: room:state
+    H->>S: playback:control
+    S->>S: validate role + capability
+    S-->>P: room:state
+    P->>S: control:request
+    S-->>H: control:requests
+    H->>S: control:resolve
+    S->>S: run same playback mutation
+    S-->>P: room:state + control:result
+```
+
+Full authoritative snapshots keep participants, roles, media and playback together,
+reducing divergence between clients. Playback has a revision; same-revision snapshots
+still carry chat/presence updates. Reviewer queues are separate and never enter the
+public room snapshot.
+
+| Assignment wording | Flickfolk event |
+| --- | --- |
+| `join_room` | `room:join` |
+| `leave_room` | `room:leave` |
+| `sync_state` | `room:state` |
+| `play` | `playback:control {action:"play"}` |
+| `pause` | `playback:control {action:"pause"}` |
+| `seek` | `playback:control {action:"seek"}` |
+| `change_video` | `media:set` |
+| `assign_role` | `role:assign` |
+| `remove_participant` | `participant:remove` |
+| `user_joined` | `room:state` |
+| `user_left` | `room:state` |
+| `role_assigned` | `role:assigned` + `room:state` |
+| `participant_removed` | `participant:removed` + `room:state` |
+
 ### Sync algorithm
 
 The server owns position, timestamp, playing state and revision; the wire protocol is preserved.
@@ -88,7 +168,7 @@ Visible playing clients measure drift at 1Hz, skipping buffering/seeking players
 Files nudge by 5% after two bad samples; active nudges stop below 50ms.
 Normal file deadband is 120ms; drift above 2s seeks. YouTube seeks above 600ms, at most every 4s.
 Programmatic actions have a 600ms echo guard; rate changes never emit commands.
-Host commands are clamped and throttled, with final scrubs emitted on release.
+Host/Moderator commands are clamped and throttled, with final scrubs emitted on release.
 Autoplay denial waits for a gesture, then realigns to the current timestamp.
 Only playback is versioned: stale playback is dropped without discarding chat/presence.
 Telemetry is an external store publishing at most 4Hz; playback labels use DOM refs.
@@ -173,8 +253,8 @@ validated HTTPS hosts/file shapes only and renders no user HTML.
 
 | Key | Action |
 | --- | --- |
-| Space / K | Host play/pause |
-| J / L | Host seek −10s / +10s |
+| Space / K | Host/Moderator play/pause |
+| J / L | Host/Moderator seek −10s / +10s |
 | F / Escape | Stage fullscreen / exit |
 | X | Effects |
 | M | Mic mute after initial permission click |
@@ -184,7 +264,7 @@ validated HTTPS hosts/file shapes only and renders no user HTML.
 
 Shortcuts run at window capture and ignore only text entry (not ranges/buttons/tabs/links). Enter sends; Shift+Enter
 inserts a newline. Composer content is limited to 500 characters. Playback shortcuts
-use the same host/echo-guard path as the player controls. Settings contains ducking
+use the same role/echo-guard path as the player controls. Settings contains ducking
 and effects after the current source has actually played; detailed engine version/corrections are opt-in with `?debug=1`.
 
 ## Verification
@@ -204,6 +284,8 @@ WebRTC to verify RMS, normalization-path setup, ducking, mute/zero and cleanup.
 Provider browser tests mock official SDK boundaries while using the real room/socket/engine path.
 Synthetic tests do not certify live provider availability, accounts, physical microphones or relay infrastructure.
 GitHub Actions runs lint, typecheck, tests, build, Playwright and Docker verification on pushes and pull requests.
+The assignment-final local suite has 203 unit/integration tests and 36 browser tests.
+CI is the release gate, including the non-root Docker health smoke test.
 
 ## Deployment and scaling
 
@@ -215,7 +297,9 @@ health checks. Deployments track the `main` branch.
 
 The current service intentionally runs a single instance because authoritative room
 state, messages and invites are in memory. A restart or redeploy clears active rooms.
-This is acceptable for the current signup-free MVP and avoids requiring a database.
+A database is intentionally omitted because the assignment makes it optional for the MVP.
+The free Render service may cold-start after idle; the filesystem is not persistence.
+Redis is not implemented.
 
 For multiple instances, a Socket.IO Redis adapter can distribute broadcasts, but
 it does **not** make this in-memory authoritative room state shared or persistent.
