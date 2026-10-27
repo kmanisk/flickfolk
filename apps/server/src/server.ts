@@ -1,6 +1,8 @@
 import express from "express";
 import compression from "compression";
 import { installGifRoutes } from "./gifs.js";
+import { applyControl } from "./roomControls.js";
+import { ControlRequests } from "./controlRequests.js";
 import { createLimiter } from "./limits.js";
 import { log } from "./log.js";
 import helmet from "helmet";
@@ -16,15 +18,16 @@ import {
   cleanReaction,
   gifUrl,
   CODE,
-  canControl,
+  can,
+  promoteHost,
+  cleanControlIntent,
+  checkRequestLimit,
+  type Role,
+  type Permission,
+  type ControlRequest,
   cleanChat,
   cleanName,
-  currentPosition,
   normalizeCode,
-  parseMedia,
-  supportsAction,
-  mediaCapabilities,
-  validPosition,
   type Ack,
   type ClientEvents,
   type Room,
@@ -163,7 +166,27 @@ export function createApp() {
       capacity: 24,
     });
   });
-  const broadcast = (room: Room) => io.to(room.code).emit("room:state", room);
+  const requests = new ControlRequests(
+    rooms,
+    (id, queue) => io.to(id).emit("control:requests", queue),
+    (id, requestId) =>
+      io
+        .to(id)
+        .emit("control:result", {
+          requestId,
+          approved: false,
+          error: "Request expired.",
+        }),
+  );
+  http.on("close", () => requests.close());
+  const recovery = new Map<
+    string,
+    { code: string; role: Role; expiresAt: number }
+  >();
+  const broadcast = (room: Room) => {
+    io.to(room.code).emit("room:state", room);
+    requests.publish(room);
+  };
   io.on("connection", (socket) => {
     let code: string | undefined;
     let clientId: string | undefined;
@@ -197,35 +220,46 @@ export function createApp() {
       }
     }
     function cleanClientId(value: unknown) {
-      if (
-        typeof value !== "string" ||
-        !/^[a-zA-Z0-9_-]{8,64}$/.test(value)
-      )
+      if (typeof value !== "string" || !/^[a-zA-Z0-9_-]{8,64}$/.test(value))
         throw new Error("Invalid client identity.");
       return value;
     }
-    function removeDuplicateClient(room: Room, nextClientId: string) {
+    function removeDuplicateClient(
+      room: Room,
+      nextClientId: string,
+    ): Role | undefined {
       const previous = clientSessions.get(nextClientId);
       if (!previous || previous.socketId === socket.id) return;
       const previousRoom = rooms.get(previous.roomCode);
+      const oldPerson = previousRoom?.participants.find(
+        (p) => p.id === previous.socketId,
+      );
+      const role =
+        previousRoom?.code === room.code ? oldPerson?.role : undefined;
       if (previousRoom) {
         previousRoom.participants = previousRoom.participants.filter(
-          (participant) => participant.id !== previous.socketId,
+          (p) => p.id !== previous.socketId,
         );
         if (previousRoom.hostId === previous.socketId) {
           if (previousRoom.code === room.code) previousRoom.hostId = socket.id;
-          else if (previousRoom.participants.length)
-            previousRoom.hostId = previousRoom.participants[0]!.id;
+          else promoteHost(previousRoom);
         }
-        if (!previousRoom.participants.length && previousRoom.code !== room.code)
-          rooms.delete(previousRoom.code);
-        else if (previousRoom.code !== room.code) broadcast(previousRoom);
+        if (previousRoom.code !== room.code) {
+          if (!previousRoom.participants.length) {
+            rooms.delete(previousRoom.code);
+            requests.delete(previousRoom.code);
+          } else broadcast(previousRoom);
+        }
       }
       void io.sockets.sockets.get(previous.socketId)?.leave(previous.roomCode);
       clientSessions.delete(nextClientId);
+      return role;
     }
     function rememberClient(room: Room, nextClientId: string) {
+      for (const [key, saved] of recovery)
+        if (saved.expiresAt <= Date.now()) recovery.delete(key);
       clientId = nextClientId;
+      recovery.delete(nextClientId);
       clientSessions.set(nextClientId, {
         roomCode: room.code,
         socketId: socket.id,
@@ -237,30 +271,56 @@ export function createApp() {
         throw new Error("Join a room first.");
       return room;
     }
-    function host() {
+    function authorize(action: Permission) {
       const room = member();
-      if (!canControl(room, socket.id))
-        throw new Error("Only the host can control playback.");
+      const sender = room.participants.find((p) => p.id === socket.id)!;
+      if (!can(sender.role, action))
+        throw new Error(
+          action === "play" ||
+            action === "pause" ||
+            action === "seek" ||
+            action === "setVideo"
+            ? "Only the host and moderators can control playback."
+            : "Only the host can manage participants.",
+        );
       return room;
     }
-    function leave() {
+    function target(room: Room, userId: unknown) {
+      if (typeof userId !== "string" || userId.length > 64)
+        throw new Error("Invalid participant.");
+      const person = room.participants.find((p) => p.id === userId);
+      if (!person) throw new Error("Participant not found.");
+      if (person.id === socket.id || person.role === "host")
+        throw new Error("You cannot target the host or yourself.");
+      return person;
+    }
+    function leave(disconnected = false) {
       if (!code) return;
       const room = rooms.get(code);
       void socket.leave(code);
       code = undefined;
-      if (
-        clientId &&
-        clientSessions.get(clientId)?.socketId === socket.id
-      )
+      const person = room?.participants.find((p) => p.id === socket.id);
+      if (clientId && clientSessions.get(clientId)?.socketId === socket.id) {
+        if (disconnected && room && person) {
+          if (recovery.size >= 1000)
+            recovery.delete(recovery.keys().next().value!);
+          recovery.set(clientId, {
+            code: room.code,
+            role: person.role === "host" ? "moderator" : person.role,
+            expiresAt: Date.now() + 30_000,
+          });
+        }
         clientSessions.delete(clientId);
+      }
       clientId = undefined;
-      if (!room) return;
+      if (!room || !person) return;
       room.participants = room.participants.filter((p) => p.id !== socket.id);
       if (!room.participants.length) {
         rooms.delete(room.code);
+        requests.delete(room.code);
         return;
       }
-      if (room.hostId === socket.id) room.hostId = room.participants[0]!.id;
+      if (room.hostId === socket.id) promoteHost(room);
       broadcast(room);
     }
     socket.on("room:create", (payload, ack) =>
@@ -283,7 +343,9 @@ export function createApp() {
         const room: Room = {
           code,
           hostId: socket.id,
-          participants: [{ id: socket.id, name, voice: { ...VOICE_OFF } }],
+          participants: [
+            { id: socket.id, name, role: "host", voice: { ...VOICE_OFF } },
+          ],
           messages: [],
           playback: {
             media: null,
@@ -314,19 +376,35 @@ export function createApp() {
         const room = rooms.get(next);
         if (!room)
           throw new Error("Room not found. Ask your friend for a new invite.");
-        if (code === next) {
+        if (
+          code === next &&
+          room.participants.some((p) => p.id === socket.id)
+        ) {
           rememberClient(room, nextClientId);
           return room;
         }
-        removeDuplicateClient(room, nextClientId);
-        if (room.participants.length >= 24)
+        const previous = clientSessions.get(nextClientId);
+        const replacesMember =
+          previous?.roomCode === room.code &&
+          room.participants.some((p) => p.id === previous.socketId);
+        if (room.participants.length - (replacesMember ? 1 : 0) >= 24)
           throw new Error("This room is full (24 people).");
+        const saved = recovery.get(nextClientId);
+        const restored =
+          saved?.code === room.code && saved.expiresAt > Date.now()
+            ? saved.role
+            : undefined;
+        const role =
+          removeDuplicateClient(room, nextClientId) ??
+          restored ??
+          "participant";
         leave();
         code = next;
         rememberClient(room, nextClientId);
         room.participants.push({
           id: socket.id,
           name,
+          role,
           voice: { ...VOICE_OFF },
         });
         void socket.join(code);
@@ -341,48 +419,130 @@ export function createApp() {
     );
     socket.on("media:set", (payload, ack) =>
       guard(ack, () => {
-        const room = host();
-        const media = parseMedia(payload?.url);
-        room.playback = {
-          media,
-          position: 0,
-          playing: false,
-          updatedAt: Date.now(),
-          revision: room.playback.revision + 1,
-        };
+        const room = authorize("setVideo");
+        applyControl(room, {
+          action: "setVideo",
+          payload: { url: payload?.url },
+        });
         broadcast(room);
       }),
     );
     socket.on("playback:control", (payload, ack) =>
       guard(ack, () => {
-        const room = host();
-        if (!room.playback.media) throw new Error("Load a video first.");
-        if (
-          !payload ||
-          !["play", "pause", "seek"].includes(payload.action) ||
-          !validPosition(payload.position)
-        )
-          throw new Error("Invalid playback command.");
-        if (!supportsAction(room.playback.media, payload.action))
-          throw new Error(
-            "This source does not support that playback control.",
-          );
-        const now = Date.now();
-        room.playback = {
-          ...room.playback,
-          position: !mediaCapabilities(room.playback.media).canReadPosition
-            ? 0
-            : payload.action === "play"
-              ? currentPosition(room.playback, now)
-              : payload.position,
-          playing:
-            payload.action === "seek"
-              ? room.playback.playing
-              : payload.action === "play",
-          updatedAt: now,
-          revision: room.playback.revision + 1,
-        };
+        const room = authorize(payload?.action);
+        applyControl(room, {
+          action: payload?.action,
+          payload: { position: payload?.position },
+        });
         broadcast(room);
+      }),
+    );
+    socket.on("role:assign", (payload, ack) =>
+      guard(ack, () => {
+        const room = authorize("assignRole");
+        const person = target(room, payload?.userId);
+        if (payload?.role !== "moderator" && payload?.role !== "participant")
+          throw new Error("Invalid role.");
+        if (person.role === payload.role) return;
+        const wasReviewer = can(person.role, "resolveRequest");
+        person.role = payload.role;
+        if (wasReviewer) io.to(person.id).emit("control:requests", []);
+        broadcast(room);
+        io.to(room.code).emit("role:assigned", {
+          userId: person.id,
+          username: person.name,
+          role: person.role,
+        });
+      }),
+    );
+    socket.on("participant:remove", (payload, ack) =>
+      guard(ack, () => {
+        const room = authorize("removeParticipant");
+        const person = target(room, payload?.userId);
+        io.to(person.id).emit("participant:removed", {
+          userId: person.id,
+          reason: "removed_by_host",
+        });
+        void io.sockets.sockets.get(person.id)?.leave(room.code);
+        for (const [key, session] of clientSessions)
+          if (session.socketId === person.id) {
+            clientSessions.delete(key);
+            recovery.delete(key);
+          }
+        room.participants = room.participants.filter((p) => p.id !== person.id);
+        broadcast(room);
+      }),
+    );
+    socket.on("control:requests", (ack) =>
+      guard(
+        ack,
+        () => {
+          const room = authorize("resolveRequest");
+          limit("request-queue", 120);
+          requests.publish(room);
+          return requests.current(room);
+        },
+        false,
+      ),
+    );
+    socket.on("control:request", (payload, ack) =>
+      guard(ack, () => {
+        const room = member();
+        const person = room.participants.find((p) => p.id === socket.id)!;
+        if (person.role !== "participant")
+          throw new Error("Use the playback controls directly.");
+        limit("control-request", 60);
+        const intent = cleanControlIntent(payload, room);
+        const queue = requests.current(room);
+        checkRequestLimit(queue, person.id, intent.action);
+        const request: ControlRequest = {
+          ...intent,
+          id: randomUUID(),
+          requesterId: person.id,
+          requesterName: person.name,
+          createdAt: Date.now(),
+          sourceRevision: room.playback.revision,
+        };
+        requests.replace(room, [...queue, request]);
+        return { requestId: request.id };
+      }),
+    );
+    socket.on("control:resolve", (payload, ack) =>
+      guard(ack, () => {
+        const room = authorize("resolveRequest");
+        if (
+          typeof payload?.requestId !== "string" ||
+          typeof payload?.approve !== "boolean"
+        )
+          throw new Error("Invalid request resolution.");
+        const queue = requests.current(room);
+        const request = queue.find((r) => r.id === payload.requestId);
+        if (!request) {
+          requests.publish(room);
+          throw new Error("Request expired.");
+        }
+        // Remove before mutation so its successful resolution cannot also expire it.
+        requests.replace(
+          room,
+          queue.filter((r) => r.id !== request.id),
+        );
+        if (payload.approve) {
+          try {
+            applyControl(room, request);
+          } catch (error) {
+            io.to(request.requesterId).emit("control:result", {
+              requestId: request.id,
+              approved: false,
+              error: error instanceof Error ? error.message : "Request failed.",
+            });
+            throw error;
+          }
+          broadcast(room);
+        }
+        io.to(request.requesterId).emit("control:result", {
+          requestId: request.id,
+          approved: payload.approve,
+        });
       }),
     );
     socket.on("chat:send", (payload, ack) =>
@@ -478,7 +638,7 @@ export function createApp() {
     socket.on("clock", (ack) => {
       if (typeof ack === "function") ack(Date.now());
     });
-    socket.on("disconnect", leave);
+    socket.on("disconnect", () => leave(true));
   });
   const client = fileURLToPath(new URL("../../client/dist/", import.meta.url));
   // The official Spotify bootstrap needs eval; confine that exception to this frame.
@@ -540,6 +700,7 @@ export function createApp() {
     rooms,
     shutdown() {
       shuttingDown = true;
+      requests.close();
       return new Promise<void>((resolve) => io.close(() => resolve()));
     },
   };
