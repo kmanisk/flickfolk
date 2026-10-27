@@ -109,6 +109,42 @@ afterEach(async () => {
 });
 
 describe("server-enforced roles", () => {
+  it("ignores client-supplied roles and invalidates replaced socket authority", async () => {
+    const impostor = await connect();
+    const payload = {
+      code: room.code,
+      name: "Impostor",
+      role: "host",
+      isHost: true,
+    };
+    const joined = ok(
+      await send<Room>((ack) => impostor.emit("room:join", payload, ack)),
+    );
+    expect(joined.participants.find((p) => p.id === impostor.id)?.role).toBe(
+      "participant",
+    );
+    const control = {
+      action: "play" as const,
+      position: 0,
+      role: "host",
+      isModerator: true,
+    };
+    expect(
+      (await send((ack) => impostor.emit("playback:control", control, ack))).ok,
+    ).toBe(false);
+    const replacement = await connect();
+    await join(replacement, "Host", "host-client-123");
+    const before = structuredClone(state().playback);
+    expect(
+      (
+        await send((ack) =>
+          host.emit("playback:control", { action: "play", position: 0 }, ack),
+        )
+      ).ok,
+    ).toBe(false);
+    expect(state().playback).toEqual(before);
+    invariant();
+  });
   it.each(["play", "pause", "seek"] as const)(
     "rejects participant %s with no mutation or broadcast",
     async (action) => {

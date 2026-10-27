@@ -32,7 +32,13 @@ export function KineticHeadline() {
         {phrases.map((phrase, i) => (
           <span
             key={phrase}
-            className={i === active ? "phrase is-active" : "phrase"}
+            className={
+              i === active
+                ? "phrase is-active"
+                : i === (active + phrases.length - 1) % phrases.length
+                  ? "phrase is-leaving"
+                  : "phrase"
+            }
             data-active={i === active}
           >
             {phrase}

@@ -181,7 +181,7 @@
   display: block;
   white-space: nowrap;
   opacity: 0;
-  transform: translateY(-8px);
+  transform: translateY(8px);
   filter: blur(2px);
   transition:
     opacity 450ms ease,
@@ -193,6 +193,9 @@
   opacity: 1;
   transform: translateY(0);
   filter: blur(0);
+}
+.kinetic-line .phrase.is-leaving {
+  transform: translateY(-8px);
 }
 @keyframes home-arrive {
   from {
