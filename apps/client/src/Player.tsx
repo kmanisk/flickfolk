@@ -132,6 +132,7 @@ export function Player({
   const mount = useRef<HTMLDivElement>(null);
   const yt = useRef<YT.Player | null>(null);
   const engine = useRef<PlaybackEngine | null>(null);
+  const cleanupEngine = useRef<(() => void) | null>(null);
   const external = useRef<PlayerAdapter | null>(null);
   const externalMount = useRef<HTMLDivElement>(null);
   const started = useRef(onStarted);
@@ -226,6 +227,8 @@ export function Player({
       .catch((e: Error) => setError(e.message));
     return () => {
       disposed = true;
+      // The SDK invalidates its iframe on destroy; detach all listeners first.
+      cleanupEngine.current?.();
       yt.current?.destroy();
       yt.current = null;
     };
@@ -342,13 +345,19 @@ export function Player({
     };
     document.addEventListener("visibilitychange", visibility);
     const unsubscribe = subscribeResync(() => next.resync());
-    return () => {
+    let cleaned = false;
+    const cleanup = () => {
+      if (cleaned) return;
+      cleaned = true;
       unsubscribe();
       document.removeEventListener("visibilitychange", visibility);
       stopStarted();
       next.dispose();
       if (engine.current === next) engine.current = null;
+      if (cleanupEngine.current === cleanup) cleanupEngine.current = null;
     };
+    cleanupEngine.current = cleanup;
+    return cleanup;
   }, [ready, error, media?.kind, media?.id]);
   useEffect(() => {
     engine.current?.setContext(host, connected);
