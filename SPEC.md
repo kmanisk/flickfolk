@@ -1,5 +1,25 @@
 # WatchParty MVP
 
+## Final hiring-assignment milestone (supersedes earlier scope restrictions)
+
+Stable starting main: `30cad8be13830640047d6aa3c3c7ed93b8c70c9d`.
+Keep the existing sync/media/voice architecture, signup-free identity and Warm Dusk.
+Add shared Host/Moderator/Participant roles and one permission matrix used on both
+sides; backend state is authoritative. Exactly one member is Host and matches hostId.
+Hosts manage roles/removal; Host/Moderators control media and resolve requests.
+Participants request play/pause/seek/source through the same validated mutation
+helpers used by direct controls. Requests are reviewer-private, bounded to three
+per member, deduplicated by member/action, expire after 60s and on stale playback
+revision/source, departure or removal. Removed clients cannot automatically rejoin
+within the browser session, but can explicitly join again. Failover favors Moderators;
+socket replacement preserves roles and hostId. No accounts or persistent bans.
+Add accessible People management, confirmations, request review/results and removal
+screens. Preserve chat/reactions/voice. Add stable kinetic Home text, native motion,
+hidden-tab cleanup and reduced-motion static tagline. Audit 320px through 1920px.
+Gate merge on full local suite and GitHub CI including Docker; update evaluator docs,
+push PR, merge normally, deploy the exact main SHA to existing Flickfolk on Render
+and verify the live multi-client flows. No new cloud services or data infrastructure.
+
 Project root: `/home/onyx/Projects/watchparty/`. All project files, dependencies, tests and generated output must remain inside this dedicated subfolder. Each new project must use its own named subfolder of `/home/onyx/Projects/`, never the home or Projects parent directory.
 
 Original dark, responsive watch-party experience inspired by watchparty.me.

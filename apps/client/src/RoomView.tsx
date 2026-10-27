@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import {
   VOICE_OFF,
+  can,
   type Ack,
   type Action,
   type ClientEvents,
@@ -43,6 +44,9 @@ import { Player, type PlaybackMetrics } from "./Player.js";
 import { SyncStatusline } from "./SyncStatusline.js";
 import { ParticipantRow } from "./ParticipantRow.js";
 import { ChatPanel } from "./ChatPanel.js";
+import { useRoomRoles } from "./useRoomRoles.js";
+import { RequestControls } from "./RequestControls.js";
+import { ParticipantManagement } from "./ParticipantManagement.js";
 import { usePresence } from "./usePresence.js";
 import { useReactions } from "./useReactions.js";
 const VoiceBridge = lazy(() => import("./VoiceBridge.js"));
@@ -109,6 +113,8 @@ export default function RoomView({
     undefined,
   );
   const host = room.hostId === socket.id;
+  const roles = useRoomRoles(socket, room, setToast);
+  const controller = can(roles.role, "play");
   const departed = usePresence(room.participants, room.code);
   const reactionState = useReactions(socket, room.code, effects);
   const speakers = room.participants.map((p) => ({
@@ -212,7 +218,8 @@ export default function RoomView({
       className="media-form"
       onSubmit={(event) => {
         event.preventDefault();
-        load(url);
+        if (can(roles.role, "setVideo")) load(url);
+        else roles.request({ action: "setVideo", payload: { url } });
       }}
     >
       <label className="sr-only" htmlFor="media-url">
@@ -229,7 +236,7 @@ export default function RoomView({
         autoFocus
       />
       <Button variant="primary" type="submit" disabled={!connected}>
-        Load video
+        {controller ? "Load video" : "Request source"}
       </Button>
     </form>
   );
@@ -257,6 +264,14 @@ export default function RoomView({
           }}
         />
         <div className="topbar-actions">
+          <RequestControls
+            reviewer={can(roles.role, "resolveRequest")}
+            requests={roles.queue}
+            playback={room.playback}
+            connected={connected}
+            onRequest={roles.request}
+            onResolve={roles.resolve}
+          />
           <Button
             className="invite-button"
             variant="primary"
@@ -377,7 +392,9 @@ export default function RoomView({
               <Mic aria-hidden="true" />
             )}
             <span>{micText}</span>
-            {localVoice.joined && !localVoice.muted && <i className="voice-live-dot" aria-hidden="true" />}
+            {localVoice.joined && !localVoice.muted && (
+              <i className="voice-live-dot" aria-hidden="true" />
+            )}
           </Button>
           <IconButton
             className="leave-button"
@@ -398,8 +415,14 @@ export default function RoomView({
           <h1 className="sr-only">Room {room.code}</h1>
           <div className="stage-wrap">
             <Player
+              onPermissionDenied={() =>
+                setToast(
+                  "Only the host and moderators can control playback. Open Requests to ask.",
+                )
+              }
+              onRequest={roles.request}
               playback={room.playback}
-              host={host}
+              host={controller}
               connected={connected}
               control={control}
               onMetrics={setMetrics}
@@ -486,6 +509,18 @@ export default function RoomView({
                   connected={connected}
                   self={p.id === socket.id}
                   host={p.id === room.hostId}
+                  management={
+                    can(roles.role, "assignRole") &&
+                    p.id !== socket.id &&
+                    p.role !== "host" ? (
+                      <ParticipantManagement
+                        person={p}
+                        disabled={!connected}
+                        assign={roles.assign}
+                        remove={roles.remove}
+                      />
+                    ) : undefined
+                  }
                   voice={p.id === socket.id ? localVoice : p.voice}
                   speaking={
                     speakers.find((s) => s.id === p.id)?.speaking ?? false
@@ -533,11 +568,12 @@ export default function RoomView({
         phase={metrics.state}
         host={host}
         debug={new URLSearchParams(location.search).get("debug") === "1"}
-        onSource={host ? openSource : undefined}
-        sourceOpen={sourceOpen && host}
+        onSource={openSource}
+        canEditSource={can(roles.role, "setVideo")}
+        sourceOpen={sourceOpen}
         sourceTriggerRef={sourceButton}
         sourceEditor={
-          sourceOpen && host ? (
+          sourceOpen ? (
             <Popover
               label="Video source"
               className="source-popover"
@@ -549,6 +585,7 @@ export default function RoomView({
               {sourceForm}
               <Button
                 variant="ghost"
+                disabled={!controller}
                 onClick={() =>
                   load("https://media.w3.org/2010/05/bunny/trailer.mp4")
                 }
@@ -570,7 +607,7 @@ export default function RoomView({
           </Button>
         </div>
       )}
-      <Toast message={toast} onDismiss={() => setToast("")} />
+      <Toast neutral message={toast} onDismiss={() => setToast("")} />
     </div>
   );
 }

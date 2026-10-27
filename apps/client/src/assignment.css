@@ -1,0 +1,362 @@
+/* Assignment controls extend the existing Warm Dusk skin. */
+.requests-anchor {
+  position: relative;
+}
+.requests-button {
+  gap: 6px;
+}
+.request-count {
+  min-width: 20px;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+}
+.room-page > .toast {
+  top: auto;
+  bottom: calc(72px + env(safe-area-inset-bottom));
+}
+.toast-neutral {
+  border-color: var(--line);
+}
+.requests-popover {
+  width: min(360px, calc(100vw - 24px));
+  max-height: min(560px, calc(100dvh - 96px));
+  overflow: auto;
+  right: 0;
+}
+.requests-popover h2,
+.confirmation-dialog h2 {
+  font-size: 17px;
+  margin: 0 0 12px;
+}
+.permission-note {
+  font-size: 14px;
+  color: var(--muted);
+  margin: 0 0 16px;
+}
+.request-playback-actions,
+.request-seek-row,
+.request-decisions,
+.confirmation-actions {
+  display: flex;
+  gap: 8px;
+}
+.request-playback-actions {
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.requests-popover label {
+  display: block;
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+.request-seek-row input {
+  width: 100%;
+  min-width: 0;
+  padding: 8px;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.request-seek-row .button {
+  flex-shrink: 0;
+}
+.control-request-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.control-request-list li {
+  display: grid;
+  gap: 12px;
+  border-top: 1px solid var(--line);
+  padding: 12px 0;
+}
+.control-request-list li > div:first-child {
+  display: grid;
+  gap: 4px;
+}
+.control-request-list strong {
+  font-size: 15px;
+}
+.control-request-list span {
+  font-size: 14px;
+  color: var(--muted);
+}
+.request-url {
+  overflow-wrap: anywhere;
+  max-height: 64px;
+  overflow: auto;
+}
+.participant {
+  gap: 8px;
+}
+.participant-name {
+  min-width: 0;
+}
+.participant-name strong {
+  overflow-wrap: anywhere;
+}
+.participant-management {
+  flex-shrink: 0;
+}
+.participant-menu {
+  position: fixed;
+  top: 72px;
+  right: 16px;
+  bottom: auto;
+  width: min(310px, calc(100vw - 32px));
+  z-index: 90;
+}
+.participant-menu > .button {
+  justify-content: flex-start;
+  width: 100%;
+  margin: 2px 0;
+}
+.confirmation-dialog {
+  top: 50%;
+  left: 50%;
+  right: auto;
+  transform: translate(-50%, -50%);
+  animation: none;
+}
+.confirmation-dialog p {
+  font-size: 15px;
+  color: var(--muted);
+  margin: 0 0 16px;
+}
+.confirmation-actions {
+  justify-content: flex-end;
+}
+.danger-action:hover,
+.danger-action:focus-visible {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+.moderator-badge {
+  color: var(--muted);
+  padding: 4px;
+  font-size: 13px;
+  gap: 4px;
+}
+.moderator-badge svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+.participant:has(.participant-management) .moderator-badge span {
+  font-size: 13px;
+}
+.removed-page {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: var(--bg);
+}
+.removed-panel {
+  max-width: 460px;
+  display: grid;
+  gap: 24px;
+  justify-items: start;
+}
+.removed-panel h1 {
+  font-size: clamp(24px, 5vw, 36px);
+  line-height: 1.25;
+}
+
+.kinetic-headline > span:first-child {
+  display: block;
+  color: var(--text);
+}
+.home-intro .kinetic-line {
+  position: relative;
+  display: block;
+  height: 1.1em;
+  color: var(--accent);
+}
+.kinetic-line .phrase {
+  position: absolute;
+  inset: 0;
+  display: block;
+  white-space: nowrap;
+  opacity: 0;
+  transform: translateY(8px);
+  filter: blur(2px);
+  transition:
+    opacity 450ms ease,
+    transform 450ms ease,
+    filter 450ms ease;
+  pointer-events: none;
+}
+.kinetic-line .phrase.is-active {
+  opacity: 1;
+  transform: translateY(0);
+  filter: blur(0);
+}
+.kinetic-line .phrase.is-leaving {
+  transform: translateY(-8px);
+}
+@keyframes home-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.home-topbar,
+.home-eyebrow,
+.kinetic-headline,
+.home-description,
+.join-ticket,
+.home-preview {
+  animation: home-arrive 320ms ease-out both;
+}
+.home-eyebrow {
+  animation-delay: 40ms;
+}
+.kinetic-headline {
+  animation-delay: 70ms;
+}
+.home-description {
+  animation-delay: 100ms;
+}
+.join-ticket {
+  animation-delay: 130ms;
+}
+.home-preview {
+  animation-delay: 160ms;
+}
+.preview-messages > * {
+  animation: home-arrive 300ms ease-out both;
+}
+.preview-messages > :nth-child(2) {
+  animation-delay: 220ms;
+}
+.preview-messages > :nth-child(3) {
+  animation-delay: 320ms;
+}
+.start-button svg,
+.join-row .button svg {
+  transition: transform 140ms ease;
+}
+.start-button:hover svg,
+.join-row .button:hover svg {
+  transform: translateX(2px);
+}
+
+@media (max-width: 767px) {
+  .requests-button {
+    width: 44px;
+    min-width: 44px;
+    padding: 0;
+    gap: 0;
+    position: relative;
+  }
+  .requests-button > span:not(.request-count) {
+    display: none;
+  }
+  .requests-button .request-count {
+    position: absolute;
+    top: -3px;
+    right: -4px;
+    background: var(--panel);
+    border-radius: 8px;
+    font-size: 13px;
+  }
+  .requests-popover {
+    position: fixed;
+    top: 60px;
+    right: 12px;
+    bottom: auto;
+  }
+  .participant-menu {
+    top: 60px;
+  }
+  .confirmation-dialog {
+    top: 50%;
+  }
+  .home-intro .kinetic-headline {
+    font-size: clamp(36px, 11.7vw, 48px);
+  }
+  .moderator-badge span {
+    font-size: 13px;
+  }
+  .participant-name strong {
+    font-size: 14px;
+  }
+}
+@media (max-width: 359px) {
+  .home-topbar,
+  .room-topbar {
+    padding-inline: 8px;
+  }
+  .room-topbar .brand {
+    font-size: 19px;
+    gap: 4px;
+  }
+  .room-topbar .brand-mark {
+    width: 22px;
+  }
+  .room-topbar .topbar-actions {
+    gap: 2px;
+  }
+  .participant {
+    padding-inline: 8px;
+    gap: 4px;
+  }
+  .participant .person-avatar {
+    width: 32px;
+    height: 32px;
+    flex-basis: 32px;
+  }
+  .join-row {
+    gap: 6px;
+  }
+}
+@media (max-width: 480px) {
+  .preview-room {
+    grid-template-columns: 1fr;
+  }
+  .preview-video {
+    min-height: 0;
+    aspect-ratio: 16 / 10;
+  }
+  .preview-rail {
+    gap: 12px;
+  }
+  .preview-messages {
+    gap: 12px;
+  }
+  .preview-message {
+    gap: 8px;
+  }
+  .preview-message .person-avatar {
+    display: grid;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .home-topbar,
+  .home-eyebrow,
+  .kinetic-headline,
+  .home-description,
+  .join-ticket,
+  .home-preview,
+  .preview-messages > * {
+    animation: none;
+  }
+  .kinetic-line .phrase {
+    transition: none;
+    filter: none;
+    transform: none;
+  }
+  .kinetic-line .phrase:not(:first-child) {
+    display: none;
+  }
+  .kinetic-line .phrase:first-child {
+    opacity: 1;
+  }
+}

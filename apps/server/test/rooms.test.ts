@@ -486,7 +486,7 @@ it("keeps signup-free identity and rejects capability-disabled commands before a
       );
       expect(denied).toMatchObject({
         ok: false,
-        error: "Only the host can control playback.",
+        error: "Only the host and moderators can control playback.",
       });
       expect(app.rooms.get(code)).toEqual(before);
     }

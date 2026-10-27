@@ -1,6 +1,7 @@
 # Deploying Flickfolk
 
-Preparation only. This pass creates/pushes GitHub source; it does not deploy.
+Deploy the verified main build to the existing single-instance Flickfolk service.
+Live: https://flickfolk.onrender.com. Never create a duplicate service for a release.
 Repository: https://github.com/kmanisk/flickfolk
 
 ## Local production check
@@ -29,14 +30,16 @@ The multi-stage image runs non-root, exposes 3001 and includes a health check.
 Docker has not been claimed tested if no local Docker engine is available; the CI
 Docker job must pass before release. Never put `.env`, keys or tokens in Git.
 
-## Render setup (when deployment is authorized)
+## Existing Render service configuration
 
-1. Connect the public `kmanisk/flickfolk` repository in Render.
-2. Create a Blueprint from `render.yaml`, or a single Node Web Service named `flickfolk`.
+1. Open the existing `flickfolk` Node Web Service linked to `kmanisk/flickfolk`.
+2. Confirm the linked branch is `main` and preserve the existing service/region.
 3. Root Directory: repository root. Build: `npm ci --include=dev && npm run build`.
 4. Start: `npm start`; Node 24; health check: `/healthz`; exactly one instance.
-5. Set `NODE_ENV=production`, `HOST=0.0.0.0`. Render supplies `PORT`; do not hardcode it.
-6. Keep automatic deployment off until physical-device and release checks are complete.
+5. Set `NODE_ENV=production`, `HOST=0.0.0.0`, `TRUST_PROXY=1`. Render supplies `PORT`; do not hardcode it.
+6. Merge only with green local/GitHub checks. Inspect deploy history for the exact
+   merged SHA. Monitor auto-deploy if present; if absent, trigger one manual deploy.
+   The checked-in Blueprint defaults auto-deploy off. Do not trigger duplicate deploys.
 7. Use the Render HTTPS URL for client and Socket.IO. The client uses the same origin.
 
 The server supports HTTP polling/WebSocket upgrades behind a reverse proxy, serves
@@ -103,17 +106,22 @@ Flickfolk itself stays signup-free: no Supabase keys, OAuth or database setup.
 - Room fits 1366×768 and phone viewport without page scroll/hidden controls.
 - Two tabs and phone/laptop synchronize play/pause/seek and late join.
 - YouTube embeds under CSP; direct HTTPS media loads; unavailable media fails clearly.
-- Guests cannot control host playback; host leave promotes someone; reconnect resyncs.
+- Participants cannot mutate playback; request/approve/deny works. Moderators can
+  control media but cannot manage roles/removal. Host departure favors a Moderator.
+- Role changes arrive immediately; removal survives refresh and blocks auto-rejoin.
+  Explicit fresh join remains possible; reconnect does not duplicate participants.
 - Chat text/paste remain inert; GIF images are constrained; reactions stay out of history.
 - Fullscreen retains controls/reactions/speakers; typing suppresses media shortcuts.
 - Actual RMS, mute states and disconnect cleanup work; ducking restores exact volume.
 - Fonts, favicon, title/OG description, asset cache headers and graceful shutdown work.
 - Logs contain no application chat, names, invite codes, headers or credentials.
 
-## Remaining before deployment
+## Optional assets and release gate
 
 - Supply/reconcile the missing `design/refs/room.png`; no pixel-match claim is made.
 - Add an approved 1200×630 `apps/client/public/og.png`; metadata currently references it.
-- Validate Docker/CI and the physical-device/TURN checks above.
+- Validate Docker/CI before release; physical-device/TURN checks remain important
+  when advertising voice support across restrictive networks.
 - Obtain GIPHY key/approval only if enabling optional search publicly.
-- Render deployment is cancelled for the current polish pass. Do not provision or deploy services; choose a non-Render target in a future deployment task.
+- Verify the existing Render deployment uses the exact merged main SHA and serves
+  the new frontend assets, healthy API, roles and request flows before submission.

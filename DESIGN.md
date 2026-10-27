@@ -58,13 +58,19 @@ safe-area bottom. A single floating reaction button opens an upward dock.
 No horizontal overflow at 360px. Fullscreen targets the stage wrapper with overlays.
 
 ## Invariants
-Preserve playback engine, host authority, echo guards, Socket.IO wire events,
+Preserve playback engine, server role authority, echo guards, Socket.IO wire events,
 reconnect identity, peer voice, compression and ducking. No camera/auth/database.
 Lazy Room, voice, GIF and provider APIs. No animation library or UI framework.
 Only text-entry contexts suppress shortcuts. Focus rings use focus-visible only.
-Verify lint/typecheck/unit/build/browser. Current pass does not deploy.
+Verify lint/typecheck/unit/build/browser/CI before deploying the existing service.
 
 Home: no header repository link or Effects; one footer Source ↗ link. Rooms remain signup-free.
 Source popover: compact detected provider icon/name, paste URL first. Live sources
 show LIVE; unavailable seek/duration/volume controls stay hidden. Limited embeds
 never claim timeline sync. Room Effects appears only after actual loaded playback.
+
+Assignment finish: compact role labels, host-only management with confirmations,
+reviewer request count/popover and participant request actions. No duplicate headings.
+Home cycles a short deterministic second line in reserved geometry; accessible title
+stays static. Small opacity/translation entrances; reduced motion disables cycling
+and entrances. Pause timers in hidden tabs. Preserve the existing edge composition.

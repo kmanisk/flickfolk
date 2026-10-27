@@ -1,3 +1,4 @@
+import { KineticHeadline } from "./KineticHeadline.js";
 import {
   ArrowRight,
   Film,
@@ -94,11 +95,7 @@ export function Home({
             <Chip className="home-eyebrow">
               <span className="coral-dot" />A little closer, from anywhere
             </Chip>
-            <h1>
-              Same movie.
-              <br />
-              <span>Same second.</span>
-            </h1>
+            <KineticHeadline />
             <p className="home-description">
               Watch together. Talk through the good bits.
               <br className="desktop-break" /> Make a night of it, wherever you

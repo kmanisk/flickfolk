@@ -1,6 +1,10 @@
 import { mediaCapabilities } from "./media.js";
 export * from "./media.js";
 import type { VoiceState, VoiceSignal, Reaction } from "./collaboration.js";
+import { can, type Role } from "./permissions.js";
+import type { ControlIntent, ControlRequest } from "./requests.js";
+export * from "./permissions.js";
+export * from "./requests.js";
 export * from "./collaboration.js";
 export * from "./audio.js";
 export * from "./reactions.js";
@@ -25,6 +29,7 @@ export interface Playback {
   revision: number;
 }
 export interface Participant {
+  role: Role;
   voice: VoiceState;
   id: string;
   name: string;
@@ -59,6 +64,20 @@ export interface ClientEvents {
   ) => void;
   "room:leave": (ack: Ack) => void;
   "media:set": (payload: { url: string }, ack: Ack) => void;
+  "role:assign": (
+    payload: { userId: string; role: "moderator" | "participant" },
+    ack: Ack,
+  ) => void;
+  "participant:remove": (payload: { userId: string }, ack: Ack) => void;
+  "control:request": (
+    payload: ControlIntent,
+    ack: Ack<{ requestId: string }>,
+  ) => void;
+  "control:resolve": (
+    payload: { requestId: string; approve: boolean },
+    ack: Ack,
+  ) => void;
+  "control:requests": (ack: Ack<ControlRequest[]>) => void;
   "playback:control": (
     payload: { action: Action; position: number },
     ack: Ack,
@@ -79,6 +98,21 @@ export interface ClientEvents {
   clock: (ack: (now: number) => void) => void;
 }
 export interface ServerEvents {
+  "role:assigned": (payload: {
+    userId: string;
+    username: string;
+    role: Role;
+  }) => void;
+  "participant:removed": (payload: {
+    userId: string;
+    reason: "removed_by_host";
+  }) => void;
+  "control:requests": (payload: ControlRequest[]) => void;
+  "control:result": (payload: {
+    requestId: string;
+    approved: boolean;
+    error?: string;
+  }) => void;
   "voice:presence": (payload: { id: string; state: VoiceState }) => void;
   "voice:signal": (payload: { fromId: string; signal: VoiceSignal }) => void;
   reaction: (payload: Reaction) => void;
@@ -139,8 +173,14 @@ export function correction(
     rate: playing && Math.abs(drift) > 0.2 ? (drift > 0 ? 1.04 : 0.96) : 1,
   };
 }
-export function canControl(room: Pick<Room, "hostId">, id: string): boolean {
-  return room.hostId === id;
+export function canControl(
+  room: Pick<Room, "hostId"> & Partial<Pick<Room, "participants">>,
+  id: string,
+): boolean {
+  const person = room.participants?.find((p) => p.id === id);
+  return person
+    ? can(person.role, "play")
+    : !room.participants && room.hostId === id;
 }
 export function validPosition(value: unknown): value is number {
   return (

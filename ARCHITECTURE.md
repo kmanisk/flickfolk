@@ -10,7 +10,7 @@ YouTube uses no fractional rate nudges and limits correction seeks to once per f
 Hidden/buffering/seeking players skip drift samples; visibility/reconnect resample the clock.
 Autoplay denial waits for a gesture, then targets the current timestamp instead of stale position.
 Only playback has revisions: duplicate playback is dropped without discarding chat/presence.
-Host commands are clamped and throttled; programmatic events are guarded for 600ms.
+Host/Moderator commands are clamped and throttled; programmatic events are guarded for 600ms.
 `syncStore.ts` exposes truthful snapshots at most 4Hz, read only by the statusline.
 Player time/range labels use refs; React renders UI changes, not a playback clock.
 
@@ -30,3 +30,23 @@ Spotify's official loader currently requires eval. `/spotify-bridge.html` scopes
 CSP exception to the provider frame; the main document keeps eval disabled. A private
 MessageChannel initialized only by the same-origin parent carries typed operations
 and measured playback updates. Unknown timestamps/drift display as unavailable.
+
+## Roles and approval boundary
+
+Client intent -> shared validation -> Socket.IO -> server reads role from room state
+-> shared `can(role, action)` -> `applyControl` -> authoritative room broadcast.
+The UI uses the same permission function for affordances; server enforcement is the
+security boundary. Role assignment and removal are Host-only. Moderator capabilities
+include playback/source and review, never management. Roles cannot be supplied at join.
+
+Participant -> bounded private request queue -> Host/Moderator -> approve -> same
+`applyControl` -> broadcast + requester result. Denial never mutates playback.
+Requests expire after 60s or a stale revision, departure or promotion. One timer per
+nonempty queue, no idle polling. Queues never appear in room snapshots.
+
+`setHost`/`promoteHost` preserve exactly one host matching `room.hostId`. Replacement
+sockets migrate role/host identity; a disconnected Host returning after failover is a
+Moderator. A bounded 30s role lease supports local client identity without accounts.
+Removal leaves the Socket.IO room and deletes session/queue membership, so controls
+and voice signals fail membership checks. The browser session removal marker stops
+automatic rejoin; it is not a permanent ban or an authentication mechanism.
