@@ -177,6 +177,10 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the engine boundaries.
 
 ## Local file sync
 
+Flickfolk also accepts direct video URLs without a file extension and adaptive HLS (`.m3u8`) / MPEG-DASH (`.mpd`) URLs. HLS and DASH support are loaded only when needed. Direct media never passes through the Flickfolk server; the browser fetches it from the source host.
+
+Local selection accepts MP4, M4V, WebM, MKV, MOV, OGV, AVI, MPEG, transport-stream and related video containers. Actual playback still depends on codecs available in the viewer's browser/OS; Flickfolk reports an unsupported container/codec instead of uploading or transcoding the file.
+
 A Host or Moderator can choose **Local file** from the source popover. Flickfolk never
 uploads the video: the browser plays a local `File` through an object URL, while the
 server receives only a sanitized filename, size, duration and SHA-256 fingerprint. Each
@@ -196,7 +200,9 @@ Paste a URL; the source popover detects its provider. There is no media proxy or
 
 | Source | Room controls and limits |
 | --- | --- |
-| Direct `.mp4`/`.webm` | Existing HTML5 full timeline sync; codec/server access must work in the browser. |
+| Direct video URL | Native HTML5 full timeline sync for extensionless/signed URLs and browser-decodable MP4, WebM, MKV, MOV and related containers. |
+| HLS `.m3u8` | Native HLS where available, otherwise lazy `hls.js`; source host must permit browser CORS/fetch access. |
+| MPEG-DASH `.mpd` | Lazy `dash.js` over the same native video/sync engine; source host must permit browser CORS/fetch access. |
 | Direct `.mp3`/`.ogg`/`.m4a` | Same HTML5 adapter and full timeline sync where the browser supports the codec. |
 | YouTube | Existing IFrame API implementation and full timeline sync. |
 | Twitch VOD | Official Player API, play/pause/seek and measured timeline alignment. |
@@ -299,7 +305,7 @@ WebRTC to verify RMS, normalization-path setup, ducking, mute/zero and cleanup.
 Provider browser tests mock official SDK boundaries while using the real room/socket/engine path.
 Synthetic tests do not certify live provider availability, accounts, physical microphones or relay infrastructure.
 GitHub Actions runs lint, typecheck, tests, build, Playwright and Docker verification on pushes and pull requests.
-The current local suite has 214 unit/integration tests and 39 browser tests.
+The current local suite has 220 unit/integration tests and 41 browser tests.
 CI is the release gate, including the non-root Docker health smoke test.
 
 ## Deployment and scaling

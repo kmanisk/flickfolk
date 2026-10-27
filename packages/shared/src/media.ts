@@ -210,9 +210,40 @@ export function parseMedia(value: unknown): Media {
       live: true,
     };
   }
-  if (/\.(mp4|webm)$/i.test(url.pathname))
+  const pathname = url.pathname.toLowerCase();
+  if (/\.m3u8$/i.test(pathname))
+    return { kind: "video", id: url.href, url: url.href, stream: "hls" };
+  if (/\.mpd$/i.test(pathname))
+    return { kind: "video", id: url.href, url: url.href, stream: "dash" };
+  if (/\.(mp4|m4v|webm|mkv|mov|qt|ogv|avi|mpeg|mpg|mpe|m2v|ts|m2ts|mts|3gp|3g2|flv|wmv)$/i.test(pathname))
     return { kind: "video", id: url.href, url: url.href };
-  if (/\.(mp3|ogg|m4a)$/i.test(url.pathname))
+  if (/\.(mp3|ogg|oga|m4a|aac|wav|flac|opus)$/i.test(pathname))
     return { kind: "audio", id: url.href, url: url.href };
-  throw unsupported();
+
+  // Do not reinterpret malformed links for providers we handle explicitly.
+  const reservedProviderDomains = [
+    "youtube.com",
+    "youtu.be",
+    "twitch.tv",
+    "soundcloud.com",
+    "spotify.com",
+    "kick.com",
+  ];
+  if (
+    reservedProviderDomains.some(
+      (domain) =>
+        host === domain ||
+        host.endsWith(`.${domain}`) ||
+        host.startsWith(`${domain}.`),
+    )
+  )
+    throw unsupported();
+
+  // Signed/CDN video URLs often have no useful extension. We intentionally do
+  // not fetch them on the server; the browser attempts playback directly.
+  // Reject obvious document/image/archive URLs, but otherwise treat HTTPS/HTTP
+  // sources as direct video and let the media element report codec/CORS errors.
+  if (/\.(?:html?|xhtml|pdf|txt|json|xml|js|mjs|css|png|jpe?g|gif|webp|svg|ico|zip|rar|7z|tar|gz|bz2|xz)$/i.test(pathname))
+    throw unsupported();
+  return { kind: "video", id: url.href, url: url.href };
 }

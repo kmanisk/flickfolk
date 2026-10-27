@@ -7,8 +7,13 @@ const matching = fileURLToPath(
 const mismatch = fileURLToPath(
   new URL("./fixtures/local-mismatch.webm", import.meta.url),
 );
+const mkv = fileURLToPath(new URL("./fixtures/local-sync.mkv", import.meta.url));
 
-async function room(browser: Browser) {
+async function room(
+  browser: Browser,
+  source = matching,
+  sourceName = "local-sync.webm",
+) {
   const first = await browser.newContext();
   const second = await browser.newContext();
   const host = await first.newPage();
@@ -31,8 +36,8 @@ async function room(browser: Browser) {
   await host.getByRole("tab", { name: "Local file", exact: true }).click();
   await host
     .locator(".local-source-picker input[type=file]")
-    .setInputFiles(matching);
-  await expect(guest.getByText("Host is playing local-sync.webm")).toBeVisible();
+    .setInputFiles(source);
+  await expect(guest.getByText(`Host is playing ${sourceName}`)).toBeVisible();
 
   return {
     host,
@@ -93,6 +98,37 @@ test("a different local file is rejected before playback", async ({ browser }) =
       guest.getByText("That looks like a different file."),
     ).toBeVisible();
     await expect(guest.locator(".local-file-panel")).toBeVisible();
+    expect(errors).toEqual([]);
+  } finally {
+    await close();
+  }
+});
+
+
+test("local MKV plays when its codecs are supported by Chromium", async ({ browser }) => {
+  const { host, guest, errors, close } = await room(
+    browser,
+    mkv,
+    "local-sync.mkv",
+  );
+  try {
+    await guest
+      .locator(".local-file-panel input[type=file]")
+      .setInputFiles(mkv);
+    await expect(host.locator("video")).toBeVisible();
+    await expect(guest.locator("video")).toBeVisible();
+    await expect(
+      host.getByRole("button", { name: "Play", exact: true }),
+    ).toBeEnabled();
+    await host.getByRole("button", { name: "Play", exact: true }).click();
+    await enablePlayback(guest);
+    await expect
+      .poll(() =>
+        host
+          .locator("video")
+          .evaluate((video) => (video as HTMLVideoElement).currentTime),
+      )
+      .toBeGreaterThan(0.15);
     expect(errors).toEqual([]);
   } finally {
     await close();

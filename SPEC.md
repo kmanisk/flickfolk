@@ -175,3 +175,14 @@ its official live iframe and exposes no invented controls or timeline metrics.
 Validate canonical provider URLs and reject unsupported operations on client/server
 before room state changes. Lazy-load provider scripts, keep chat/voice independent,
 and add URL/capability/guest/shortcut/provider tests plus all existing checks.
+
+
+### Direct media compatibility
+
+Direct HTTP(S) video URLs may be extensionless or signed. Known providers still use their
+specialized adapters; obvious document/image/archive URLs and provider-lookalike hosts are
+rejected. Browser-decodable MP4, M4V, WebM, MKV, MOV, OGV, AVI/MPEG-family and transport
+stream containers may be selected locally. HLS `.m3u8` and MPEG-DASH `.mpd` use lazy
+client adapters over the existing `<video>`/PlaybackEngine path. File bytes and remote media
+never pass through the Node server. Codec support remains a browser/OS capability; Flickfolk
+does not transcode multi-gigabyte local movies in the browser.

@@ -30,7 +30,13 @@ export function ProviderBadge({ url }: { url: string }) {
   return (
     <span className="provider-badge">
       <Icon aria-hidden="true" />
-      {media ? PROVIDER_NAMES[media.kind] : "Paste a media link"}
+      {media
+        ? media.stream === "hls"
+          ? "HLS stream"
+          : media.stream === "dash"
+            ? "MPEG-DASH stream"
+            : PROVIDER_NAMES[media.kind]
+        : "Paste a media link"}
     </span>
   );
 }

@@ -53,6 +53,9 @@ automatic rejoin; it is not a permanent ban or an authentication mechanism.
 ## Local playback plane
 
 `LocalFileAdapter -> browser-local File/ObjectURL -> existing HTML5 adapter -> playbackEngine`.
+Direct browser media uses the same HTML5 adapter. Extensionless/signed URLs are attempted
+directly by the browser; HLS (`.m3u8`) and MPEG-DASH (`.mpd`) attach lazy client-only
+adapters to the same `<video>` element. The Node server never proxies or downloads media.
 Only `{ fingerprint, name, size, durationSec }` crosses Socket.IO; file bytes and paths
 never do. Fingerprinting samples at most 3 MiB in a module Worker. The server keeps
 source metadata and per-socket `hasFile` readiness in the existing in-memory room.

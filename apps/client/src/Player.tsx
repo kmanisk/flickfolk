@@ -8,6 +8,7 @@ import {
   type PlayerAdapter,
 } from "./lib/playerAdapter.js";
 import { clockSync, syncStore, subscribeResync } from "./lib/syncRuntime.js";
+import { attachAdaptiveMedia } from "./lib/adaptiveMedia.js";
 import { ActiveSpeakers, type Speaker } from "./ActiveSpeakers.js";
 import type { AudioLevels } from "./AudioLevels.js";
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
@@ -260,6 +261,29 @@ export function Player({
       yt.current = null;
     };
   }, [media?.kind, media?.id]);
+  useEffect(() => {
+    if (media?.kind !== "video" || !media.stream || !video.current) return;
+    const abort = new AbortController();
+    let dispose: (() => void) | undefined;
+    setReady(false);
+    void attachAdaptiveMedia(video.current, media, abort.signal, setError)
+      .then((cleanup) => {
+        if (abort.signal.aborted) cleanup();
+        else dispose = cleanup;
+      })
+      .catch((reason: unknown) => {
+        if (!abort.signal.aborted)
+          setError(
+            reason instanceof Error
+              ? reason.message
+              : "This adaptive stream could not load.",
+          );
+      });
+    return () => {
+      abort.abort();
+      dispose?.();
+    };
+  }, [media?.kind, media?.id, media?.stream]);
   useEffect(() => {
     if (!media || ["youtube", "video", "audio", "local"].includes(media.kind)) return;
     const abort = new AbortController();
@@ -534,7 +558,13 @@ export function Player({
           (media.kind === "local" && localUrl) ? (
           <video
             ref={video}
-            src={media.kind === "local" ? localUrl ?? undefined : media.url}
+            src={
+              media.kind === "local"
+                ? localUrl ?? undefined
+                : media.kind === "video" && media.stream
+                  ? undefined
+                  : media.url
+            }
             muted={muted}
             playsInline
             preload="auto"
@@ -561,7 +591,7 @@ export function Player({
                 onLocalError?.();
               } else
                 setError(
-                  "Video could not load. Check the URL, codec and server access.",
+                  "Video could not load. Check the URL, CORS policy, container and codecs. MP4/WebM/MKV/MOV support depends on the browser codecs available.",
                 );
             }}
           />

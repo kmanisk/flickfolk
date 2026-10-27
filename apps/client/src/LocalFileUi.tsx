@@ -24,7 +24,7 @@ function FileButton({
       <input
         className="sr-only"
         type="file"
-        accept="video/*,.mkv,.webm,.mp4"
+        accept="video/*,.mp4,.m4v,.webm,.mkv,.mov,.ogv,.avi,.mpeg,.mpg,.m2v,.ts,.m2ts,.mts,.3gp,.3g2,.flv,.wmv"
         onChange={changed}
       />
     </label>
@@ -53,6 +53,7 @@ export function LocalSourcePicker({
         <div>
           <strong>Play a file from each device</strong>
           <span>The video never uploads to Flickfolk.</span>
+          <small>MP4, WebM, MKV, MOV and other browser-decodable formats are accepted.</small>
         </div>
       </div>
       <FileButton

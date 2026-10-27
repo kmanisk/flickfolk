@@ -65,6 +65,10 @@ describe("permissions and input boundaries", () => {
     expect(parseMedia("https://cdn.example/a.webm?token=example").kind).toBe(
       "video",
     );
+    expect(parseMedia("https://example.com/file.m3u8").stream).toBe("hls");
+    expect(parseMedia("https://example.com/signed/video?id=1").kind).toBe(
+      "video",
+    );
   });
   it("rejects unsupported or dangerous URLs", () => {
     for (const value of [
@@ -72,7 +76,7 @@ describe("permissions and input boundaries", () => {
       "https://youtube.com.evil.test/watch?v=dQw4w9WgXcQ",
       "https://user:pass@example.com/v.mp4",
       "https://youtube.com/watch?v=bad",
-      "https://example.com/file.m3u8",
+      "https://example.com/image.png",
       null,
     ])
       expect(() => parseMedia(value)).toThrow();

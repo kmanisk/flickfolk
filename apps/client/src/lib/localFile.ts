@@ -19,7 +19,7 @@ export async function localVideoDuration(file: File): Promise<number> {
         cleanup();
         reject(
           new Error(
-            "Your browser can't play this file. Try MP4 (H.264) or WebM, or use Chrome or Edge.",
+            "This browser cannot decode this file's container or codec. Flickfolk supports MP4, WebM, MKV, MOV, OGV and more when your browser supports the codecs inside.",
           ),
         );
       };

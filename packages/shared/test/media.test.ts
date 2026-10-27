@@ -7,6 +7,11 @@ import {
 } from "../src/index.js";
 it.each([
   ["https://cdn.example/movie.mp4?token=x", "video", "file"],
+  ["https://cdn.example/movie.mkv", "video", "file"],
+  ["https://cdn.example/movie.mov", "video", "file"],
+  ["https://cdn.example/stream/master.m3u8", "video", "file"],
+  ["https://cdn.example/stream/manifest.mpd", "video", "file"],
+  ["https://cdn.example/signed/playback?id=123&token=x", "video", "file"],
   ["http://localhost:3101/clip.webm", "video", "file"],
   ["https://cdn.example/music.mp3", "audio", "file"],
   ["https://cdn.example/music.ogg", "audio", "file"],
@@ -66,12 +71,21 @@ it.each([
   "https://open.spotify.com:444/track/4cOdK2wGLETKBW3PvgPWqT",
   "https://kick.com/streamer/clips",
   "https://kick.com/browse",
-  "https://example.com/watch/123",
   "https://example.com/image.png",
+  "https://example.com/document.pdf",
   "<iframe src='https://player.kick.com/x'></iframe>",
 ])("rejects unsupported or misleading source %s", (url) =>
   expect(() => parseMedia(url)).toThrow("This source isn't supported yet."),
 );
+it("marks adaptive direct streams without changing the native sync provider", () => {
+  const hls = parseMedia("https://cdn.example/live/master.m3u8?token=x");
+  const dash = parseMedia("https://cdn.example/vod/manifest.mpd?token=x");
+  expect(hls).toMatchObject({ kind: "video", stream: "hls" });
+  expect(dash).toMatchObject({ kind: "video", stream: "dash" });
+  expect(mediaCapabilities(hls).provider).toBe("file");
+  expect(mediaCapabilities(dash).provider).toBe("file");
+});
+
 it("never fabricates live positions or permits unsupported live/embed actions", () => {
   for (const url of [
     "https://twitch.tv/twitchdev",

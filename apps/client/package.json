@@ -11,6 +11,8 @@
     "@fontsource-variable/figtree": "^5.3.0",
     "@fontsource-variable/jetbrains-mono": "^5.3.0",
     "@watchparty/shared": "*",
+    "dashjs": "^5.2.1",
+    "hls.js": "^1.7.3",
     "lucide-react": "^1.61.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

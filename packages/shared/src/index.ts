@@ -24,6 +24,7 @@ export interface Media {
   url: string;
   id: string;
   local?: LocalSourceMetadata;
+  stream?: "hls" | "dash";
 }
 export interface LocalSourceMetadata {
   fingerprint: string;
