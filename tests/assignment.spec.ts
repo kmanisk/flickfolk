@@ -305,3 +305,197 @@ test("kinetic Home stays stable and accessible across responsive sizes and reduc
       .evaluate((el) => getComputedStyle(el).animationName),
   ).toBe("none");
 });
+
+test("YouTube source replacement and removal dispose listeners before the SDK", async ({
+  browser,
+}) => {
+  const first = await browser.newContext();
+  const second = await browser.newContext();
+  for (const context of [first, second]) {
+    await context.route("https://www.youtube.com/embed/**", (route) =>
+      route.fulfill({
+        contentType: "text/html",
+        body: "<!doctype html><title>YouTube lifecycle fixture</title>",
+      }),
+    );
+    await context.addInitScript(() => {
+      const lifecycle = { created: 0, destroyed: 0, afterDestroy: 0 };
+      class StrictYouTubePlayer {
+        frame: HTMLIFrameElement | null;
+        state = 2;
+        position = 0;
+        listeners = new Map<string, Set<(event: { data: number }) => void>>();
+        constructor(
+          target: HTMLElement,
+          options: { videoId: string; events: { onReady: () => void } },
+        ) {
+          this.frame = document.createElement("iframe");
+          this.frame.src = `https://www.youtube.com/embed/${options.videoId}`;
+          this.frame.title = "YouTube lifecycle fixture";
+          target.replaceWith(this.frame);
+          lifecycle.created++;
+          setTimeout(() => options.events.onReady(), 30);
+        }
+        alive() {
+          if (!this.frame) {
+            lifecycle.afterDestroy++;
+            throw new Error("YouTube API called after destroy");
+          }
+        }
+        getCurrentTime() {
+          this.alive();
+          return this.position;
+        }
+        getDuration() {
+          this.alive();
+          return 120;
+        }
+        getPlayerState() {
+          this.alive();
+          return this.state;
+        }
+        getPlaybackRate() {
+          this.alive();
+          return 1;
+        }
+        setPlaybackRate() {
+          this.alive();
+        }
+        playVideo() {
+          this.alive();
+          this.state = 1;
+        }
+        pauseVideo() {
+          this.alive();
+          this.state = 2;
+        }
+        seekTo(time: number) {
+          this.alive();
+          this.position = time;
+        }
+        getVolume() {
+          this.alive();
+          return 100;
+        }
+        setVolume() {
+          this.alive();
+        }
+        isMuted() {
+          this.alive();
+          return false;
+        }
+        mute() {
+          this.alive();
+        }
+        unMute() {
+          this.alive();
+        }
+        addEventListener(
+          name: string,
+          listener: (event: { data: number }) => void,
+        ) {
+          this.alive();
+          const callbacks = this.listeners.get(name) ?? new Set();
+          callbacks.add(listener);
+          this.listeners.set(name, callbacks);
+        }
+        removeEventListener(
+          name: string,
+          listener: (event: { data: number }) => void,
+        ) {
+          this.alive();
+          this.listeners.get(name)?.delete(listener);
+        }
+        destroy() {
+          lifecycle.destroyed++;
+          this.frame?.remove();
+          this.frame = null;
+        }
+      }
+      Object.assign(window, {
+        YT: { Player: StrictYouTubePlayer },
+        youtubeLifecycle: lifecycle,
+      });
+    });
+  }
+  const host = await first.newPage(),
+    guest = await second.newPage();
+  const errors: string[] = [];
+  for (const page of [host, guest])
+    page.on("pageerror", (e) => errors.push(e.message));
+  const lifecycle = (page: Page) =>
+    page.evaluate(
+      () =>
+        (
+          window as unknown as {
+            youtubeLifecycle: {
+              created: number;
+              destroyed: number;
+              afterDestroy: number;
+            };
+          }
+        ).youtubeLifecycle,
+    );
+  try {
+    await host.goto("/");
+    await host.getByLabel("What should we call you?").fill("Alex");
+    await host
+      .getByRole("button", { name: "Start a room", exact: true })
+      .click();
+    await expect(host.getByRole("heading", { name: /Room / })).toBeVisible();
+    await guest.goto(host.url());
+    await guest.getByLabel("What should we call you?").fill("Sam");
+    await guest.getByRole("button", { name: "Join", exact: true }).click();
+    await expect(guest.getByRole("heading", { name: /Room / })).toBeVisible();
+    for (const [index, id] of ["M7lc1UVf-VE", "aqz-KE-bpKQ"].entries()) {
+      await host
+        .getByRole("button", { name: "Change video source", exact: true })
+        .click();
+      await host
+        .getByLabel("Video URL")
+        .fill(`https://www.youtube.com/watch?v=${id}`);
+      await host
+        .getByRole("button", { name: "Load video", exact: true })
+        .click();
+      for (const page of [host, guest]) {
+        await expect
+          .poll(async () => (await lifecycle(page)).created)
+          .toBe(index + 1);
+        await expect(page.locator(".player-controls .time").last()).toHaveText(
+          "2:00",
+        );
+      }
+    }
+    await manage(host);
+    await host
+      .getByRole("button", { name: "Remove from room", exact: true })
+      .click();
+    await host
+      .getByRole("button", { name: "Remove from room", exact: true })
+      .click();
+    await expect(
+      guest.getByRole("heading", {
+        name: "You were removed from this room by the host.",
+      }),
+    ).toBeVisible();
+    expect(await lifecycle(guest)).toMatchObject({
+      destroyed: 2,
+      afterDestroy: 0,
+    });
+    await host.getByRole("button", { name: "Leave room", exact: true }).click();
+    await expect(
+      host.getByRole("heading", {
+        name: "Same movie. Same second.",
+        exact: true,
+      }),
+    ).toBeVisible();
+    expect(await lifecycle(host)).toMatchObject({
+      destroyed: 2,
+      afterDestroy: 0,
+    });
+    expect(errors).toEqual([]);
+  } finally {
+    await first.close();
+    await second.close();
+  }
+});

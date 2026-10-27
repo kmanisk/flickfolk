@@ -284,7 +284,7 @@ WebRTC to verify RMS, normalization-path setup, ducking, mute/zero and cleanup.
 Provider browser tests mock official SDK boundaries while using the real room/socket/engine path.
 Synthetic tests do not certify live provider availability, accounts, physical microphones or relay infrastructure.
 GitHub Actions runs lint, typecheck, tests, build, Playwright and Docker verification on pushes and pull requests.
-The assignment-final local suite has 203 unit/integration tests and 36 browser tests.
+The assignment-final local suite has 203 unit/integration tests and 37 browser tests.
 CI is the release gate, including the non-root Docker health smoke test.
 
 ## Deployment and scaling
