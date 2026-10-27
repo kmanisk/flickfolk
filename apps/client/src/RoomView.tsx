@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import {
   VOICE_OFF,
+  FEATURES,
   can,
   type Ack,
   type Action,
@@ -45,11 +46,18 @@ import { SyncStatusline } from "./SyncStatusline.js";
 import { ParticipantRow } from "./ParticipantRow.js";
 import { ChatPanel } from "./ChatPanel.js";
 import { useRoomRoles } from "./useRoomRoles.js";
+import { useLocalFile } from "./useLocalFile.js";
 import { RequestControls } from "./RequestControls.js";
 import { ParticipantManagement } from "./ParticipantManagement.js";
 import { usePresence } from "./usePresence.js";
 import { useReactions } from "./useReactions.js";
 const VoiceBridge = lazy(() => import("./VoiceBridge.js"));
+const LocalFilePanel = lazy(() => import("./LocalFileUi.js"));
+const LocalSourcePicker = lazy(() =>
+  import("./LocalFileUi.js").then((module) => ({
+    default: module.LocalSourcePicker,
+  })),
+);
 export interface RoomViewProps {
   socket: Socket<ServerEvents, ClientEvents>;
   room: Room;
@@ -79,6 +87,8 @@ export default function RoomView({
   const [collapsed, setCollapsed] = useState(false);
   const [popup, setPopup] = useState<"settings" | "keys" | null>(null);
   const [sourceOpen, setSourceOpen] = useState(false);
+  const [sourceMode, setSourceMode] = useState<"link" | "local">("link");
+  const [localInfo, setLocalInfo] = useState<{ width: number; height: number } | null>(null);
   const [url, setUrl] = useState(room.playback.media?.url ?? "");
   const [startedMedia, setStartedMedia] = useState<string | null>(null);
   const mediaKey = room.playback.media
@@ -114,6 +124,7 @@ export default function RoomView({
   );
   const host = room.hostId === socket.id;
   const roles = useRoomRoles(socket, room, setToast);
+  const local = useLocalFile(socket, room, setToast);
   const controller = can(roles.role, "play");
   const departed = usePresence(room.participants, room.code);
   const reactionState = useReactions(socket, room.code, effects);
@@ -135,7 +146,8 @@ export default function RoomView({
   }, [voice?.error]);
   useEffect(() => {
     if (room.playback.media) setSourceOpen(false);
-  }, [room.playback.media?.url]);
+  }, [room.playback.media?.url, room.playback.media?.id]);
+  useEffect(() => setLocalInfo(null), [room.playback.media?.id]);
   useEffect(
     () => () => {
       if (copyTimer.current) clearTimeout(copyTimer.current);
@@ -200,8 +212,10 @@ export default function RoomView({
     [],
   );
   function openSource() {
-    setUrl(room.playback.media?.url ?? "");
-    setSourceOpen((value) => (room.playback.media ? !value : true));
+    const media = room.playback.media;
+    setUrl(media?.kind === "local" ? "" : media?.url ?? "");
+    setSourceMode(controller && media?.kind === "local" ? "local" : "link");
+    setSourceOpen((value) => (media ? !value : true));
   }
   const micLabel = !localVoice.joined
     ? "Enable microphone"
@@ -413,7 +427,25 @@ export default function RoomView({
       <main className="room-main">
         <section className="watch-column" aria-label={`Room ${room.code}`}>
           <h1 className="sr-only">Room {room.code}</h1>
-          <div className="stage-wrap">
+          <div
+            className="stage-wrap"
+            onDragOver={(event) => {
+              if (FEATURES.localFile) event.preventDefault();
+            }}
+            onDrop={(event) => {
+              if (!FEATURES.localFile) return;
+              event.preventDefault();
+              const file = event.dataTransfer.files?.[0];
+              if (!file) return;
+              if (!controller && room.playback.media?.kind !== "local") {
+                setToast("Only the host and moderators can choose a local source.");
+                return;
+              }
+              // Controllers dropping a file are choosing the room source; viewers
+              // dropping one are selecting their own copy of the active local source.
+              void local.choose(file, controller);
+            }}
+          >
             <Player
               onPermissionDenied={() =>
                 setToast(
@@ -434,6 +466,26 @@ export default function RoomView({
               levels={levels}
               onReaction={reactionState.send}
               effects={effects}
+              localFile={local.file}
+              localPanel={
+                local.source && !local.file ? (
+                  <Suspense fallback={<div className="player-notice">Opening local file tools…</div>}>
+                    <LocalFilePanel
+                      source={local.source}
+                      status={local.status}
+                      progress={local.progress}
+                      error={local.error}
+                      candidateDuration={local.candidate?.durationSec}
+                      onChoose={(file) => void local.choose(file)}
+                      onUseAnyway={local.acceptNear}
+                      onReset={local.reset}
+                    />
+                  </Suspense>
+                ) : null
+              }
+              onLocalReady={local.mediaReady}
+              onLocalError={local.mediaError}
+              onLocalMediaInfo={setLocalInfo}
               onStarted={() => {
                 if (room.playback.media)
                   setStartedMedia(
@@ -571,6 +623,13 @@ export default function RoomView({
         onSource={openSource}
         canEditSource={can(roles.role, "setVideo")}
         sourceOpen={sourceOpen}
+        sourceTitle={
+          local.source && localInfo
+            ? `${localInfo.width}×${localInfo.height}`
+            : local.source
+              ? `${local.source.name} · local file`
+              : undefined
+        }
         sourceTriggerRef={sourceButton}
         sourceEditor={
           sourceOpen ? (
@@ -581,17 +640,52 @@ export default function RoomView({
               onClose={() => setSourceOpen(false)}
             >
               <h2>What are we watching?</h2>
-              <ProviderBadge url={url} />
-              {sourceForm}
-              <Button
-                variant="ghost"
-                disabled={!controller}
-                onClick={() =>
-                  load("https://media.w3.org/2010/05/bunny/trailer.mp4")
-                }
-              >
-                Try a sample film
-              </Button>
+              {FEATURES.localFile && controller && (
+                <div className="source-mode-tabs" role="tablist" aria-label="Source type">
+                  <Button
+                    variant={sourceMode === "link" ? "secondary" : "ghost"}
+                    role="tab"
+                    aria-selected={sourceMode === "link"}
+                    onClick={() => setSourceMode("link")}
+                  >
+                    Link
+                  </Button>
+                  <Button
+                    variant={sourceMode === "local" ? "secondary" : "ghost"}
+                    role="tab"
+                    aria-selected={sourceMode === "local"}
+                    onClick={() => setSourceMode("local")}
+                  >
+                    Local file
+                  </Button>
+                </div>
+              )}
+              {sourceMode === "local" && FEATURES.localFile && controller ? (
+                <Suspense fallback={<div className="local-source-loading">Opening local file tools…</div>}>
+                  <LocalSourcePicker
+                    status={local.status}
+                    progress={local.progress}
+                    error={local.error}
+                    ready={local.ready}
+                    total={local.total}
+                    onChoose={(file) => void local.choose(file, true)}
+                  />
+                </Suspense>
+              ) : (
+                <>
+                  <ProviderBadge url={url} />
+                  {sourceForm}
+                  <Button
+                    variant="ghost"
+                    disabled={!controller}
+                    onClick={() =>
+                      load("https://media.w3.org/2010/05/bunny/trailer.mp4")
+                    }
+                  >
+                    Try a sample film
+                  </Button>
+                </>
+              )}
             </Popover>
           ) : null
         }

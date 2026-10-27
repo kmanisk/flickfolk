@@ -2,6 +2,7 @@ import {
   AudioLines,
   Disc3,
   Film,
+  HardDrive,
   Link2,
   Music2,
   Radio,
@@ -16,6 +17,7 @@ const icons = {
   soundcloud: AudioLines,
   spotify: Disc3,
   kick: Radio,
+  local: HardDrive,
 };
 export function ProviderBadge({ url }: { url: string }) {
   let media: Media | undefined;

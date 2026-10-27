@@ -1,5 +1,5 @@
 import { useSyncExternalStore, type ReactNode, type RefObject } from "react";
-import { Link2, Wifi, WifiOff } from "lucide-react";
+import { HardDrive, Link2, Wifi, WifiOff } from "lucide-react";
 import { REACTIONS, type ReactionSymbol, type Room } from "@watchparty/shared";
 import type { PlaybackMetrics } from "./Player.js";
 import { syncStore } from "./lib/syncRuntime.js";
@@ -15,6 +15,7 @@ export function SyncStatusline({
   onSource,
   canEditSource = true,
   sourceOpen,
+  sourceTitle,
   sourceTriggerRef,
   sourceEditor,
   onReaction,
@@ -28,6 +29,7 @@ export function SyncStatusline({
   onSource?: () => void;
   canEditSource?: boolean;
   sourceOpen?: boolean;
+  sourceTitle?: string;
   sourceTriggerRef?: RefObject<HTMLButtonElement | null>;
   sourceEditor?: ReactNode;
   onReaction?: (symbol: ReactionSymbol) => void;
@@ -47,9 +49,16 @@ export function SyncStatusline({
         ? phase
         : metrics.state;
   const drift = connected && room && !unavailable ? metrics.driftMs : null;
-  const source = room?.playback.media
-    ? new URL(room.playback.media.url).hostname.replace(/^www\./, "")
-    : "Choose a video";
+  const media = room?.playback.media;
+  const isLocal = media?.kind === "local";
+  const local = isLocal ? media.local : undefined;
+  const source = isLocal
+    ? local
+      ? `Local · ${local.name}`
+      : "Local file"
+    : media
+      ? new URL(media.url).hostname.replace(/^www\./, "")
+      : "Choose a video";
   return (
     <footer
       className={`bottom-bar sync-statusline ${debug ? "debug-status" : ""}`}
@@ -65,14 +74,15 @@ export function SyncStatusline({
               canEditSource ? "Change video source" : "Request video source"
             }
             aria-expanded={sourceOpen}
+            title={sourceTitle}
             onClick={onSource}
           >
-            <Link2 aria-hidden="true" />
+            {isLocal ? <HardDrive aria-hidden="true" /> : <Link2 aria-hidden="true" />}
             <span>{source}</span>
           </Button>
         ) : (
-          <span className="source-chip read-only-source">
-            <Link2 aria-hidden="true" />
+          <span className="source-chip read-only-source" title={sourceTitle}>
+            {isLocal ? <HardDrive aria-hidden="true" /> : <Link2 aria-hidden="true" />}
             <span>{source}</span>
           </span>
         )}

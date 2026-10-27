@@ -1,7 +1,7 @@
 import express from "express";
 import compression from "compression";
 import { installGifRoutes } from "./gifs.js";
-import { applyControl } from "./roomControls.js";
+import { applyControl, applyLocalSource } from "./roomControls.js";
 import { ControlRequests } from "./controlRequests.js";
 import { createLimiter } from "./limits.js";
 import { log } from "./log.js";
@@ -12,10 +12,12 @@ import { fileURLToPath } from "node:url";
 import { Server } from "socket.io";
 import {
   VOICE_OFF,
+  FEATURES,
   MAX_VOICE_PEERS,
   cleanVoiceState,
   cleanSignal,
   cleanReaction,
+  cleanLocalSource,
   gifUrl,
   CODE,
   can,
@@ -344,7 +346,7 @@ export function createApp() {
           code,
           hostId: socket.id,
           participants: [
-            { id: socket.id, name, role: "host", voice: { ...VOICE_OFF } },
+            { id: socket.id, name, role: "host", voice: { ...VOICE_OFF }, hasFile: false },
           ],
           messages: [],
           playback: {
@@ -406,6 +408,7 @@ export function createApp() {
           name,
           role,
           voice: { ...VOICE_OFF },
+          hasFile: false,
         });
         void socket.join(code);
         broadcast(room);
@@ -425,6 +428,42 @@ export function createApp() {
           payload: { url: payload?.url },
         });
         broadcast(room);
+      }),
+    );
+    socket.on("room:setLocalSource", (payload, ack) =>
+      guard(ack, () => {
+        if (!FEATURES.localFile) throw new Error("Local files are disabled.");
+        const room = authorize("setVideo");
+        applyLocalSource(room, cleanLocalSource(payload));
+        broadcast(room);
+      }),
+    );
+    socket.on("source:ready", (payload, ack) =>
+      guard(ack, () => {
+        if (!FEATURES.localFile) throw new Error("Local files are disabled.");
+        const room = member();
+        if (!allow(`local-ready:${socket.id}`, 5, 3000))
+          throw new Error("Local file updates are too fast.");
+        if (
+          !payload ||
+          (payload.fingerprint !== null &&
+            (typeof payload.fingerprint !== "string" ||
+              !/^[a-f0-9]{64}$/.test(payload.fingerprint))) ||
+          (payload.acceptedNearMatch !== undefined &&
+            typeof payload.acceptedNearMatch !== "boolean")
+        )
+          throw new Error("Invalid local file readiness.");
+        const person = room.participants.find((p) => p.id === socket.id)!;
+        const source = room.playback.media;
+        const ready =
+          source?.kind === "local" &&
+          payload.fingerprint !== null &&
+          (payload.fingerprint === source.local?.fingerprint ||
+            payload.acceptedNearMatch === true);
+        if (person.hasFile !== ready) {
+          person.hasFile = ready;
+          broadcast(room);
+        }
       }),
     );
     socket.on("playback:control", (payload, ack) =>

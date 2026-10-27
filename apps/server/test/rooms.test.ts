@@ -516,3 +516,158 @@ it("live play/pause stays host-authoritative without an invented timeline", asyn
   );
   expect(denied.ok).toBe(false);
 });
+
+describe("local file room protocol", () => {
+  const fingerprint = "a".repeat(64);
+  const otherFingerprint = "b".repeat(64);
+  const metadata = {
+    fingerprint,
+    name: "movie.webm",
+    size: 17_829,
+    durationSec: 3.25,
+  };
+
+  async function localRoom() {
+    const host = await connect();
+    const guest = await connect();
+    const created = await request<Room>((ack) =>
+      host.emit("room:create", { name: "Host" }, ack),
+    );
+    if (!created.ok) throw new Error(created.error);
+    const code = created.data.code;
+    await request<Room>((ack) =>
+      guest.emit("room:join", { name: "Guest", code }, ack),
+    );
+    return { host, guest, code };
+  }
+
+  it("lets only a controller set metadata-only local sources", async () => {
+    const { host, guest, code } = await localRoom();
+    expect(
+      (
+        await request((ack) =>
+          guest.emit("room:setLocalSource", metadata, ack),
+        )
+      ).ok,
+    ).toBe(false);
+    expect(
+      (
+        await request((ack) =>
+          host.emit(
+            "room:setLocalSource",
+            { ...metadata, fingerprint: "A".repeat(64) },
+            ack,
+          ),
+        )
+      ).ok,
+    ).toBe(false);
+
+    const changed = nextState(
+      guest,
+      (room) => room.playback.media?.kind === "local",
+    );
+    expect(
+      (
+        await request((ack) =>
+          host.emit(
+            "room:setLocalSource",
+            { ...metadata, name: "folder/movie.webm" },
+            ack,
+          ),
+        )
+      ).ok,
+    ).toBe(true);
+    const room = await changed;
+    expect(room.playback.media).toEqual({
+      kind: "local",
+      id: fingerprint,
+      url: "",
+      local: { ...metadata, name: "foldermovie.webm" },
+    });
+    expect(JSON.stringify(app.rooms.get(code))).not.toContain("folder/movie.webm");
+    expect(room.participants.every((person) => person.hasFile === false)).toBe(true);
+  });
+
+  it("tracks exact and explicitly accepted near copies and clears them on source change", async () => {
+    const { host, guest, code } = await localRoom();
+    await request((ack) => host.emit("room:setLocalSource", metadata, ack));
+
+    let changed = nextState(
+      guest,
+      (room) => room.participants.find((p) => p.id === host.id)?.hasFile === true,
+    );
+    expect(
+      (
+        await request((ack) =>
+          host.emit("source:ready", { fingerprint }, ack),
+        )
+      ).ok,
+    ).toBe(true);
+    expect(
+      (await changed).participants.find((p) => p.id === host.id)?.hasFile,
+    ).toBe(true);
+
+    expect(
+      (
+        await request((ack) =>
+          guest.emit("source:ready", { fingerprint: otherFingerprint }, ack),
+        )
+      ).ok,
+    ).toBe(true);
+    expect(
+      app.rooms.get(code)!.participants.find((p) => p.id === guest.id)?.hasFile,
+    ).toBe(false);
+
+    changed = nextState(
+      host,
+      (room) => room.participants.find((p) => p.id === guest.id)?.hasFile === true,
+    );
+    expect(
+      (
+        await request((ack) =>
+          guest.emit(
+            "source:ready",
+            { fingerprint: otherFingerprint, acceptedNearMatch: true },
+            ack,
+          ),
+        )
+      ).ok,
+    ).toBe(true);
+    await changed;
+
+    const cleared = nextState(
+      guest,
+      (room) =>
+        room.playback.media?.kind === "local" &&
+        room.playback.media.id === otherFingerprint,
+    );
+    await request((ack) =>
+      host.emit(
+        "room:setLocalSource",
+        { ...metadata, fingerprint: otherFingerprint, name: "next.webm" },
+        ack,
+      ),
+    );
+    expect((await cleared).participants.every((p) => p.hasFile === false)).toBe(
+      true,
+    );
+  });
+
+  it("rate limits local readiness updates per socket", async () => {
+    const { host } = await localRoom();
+    await request((ack) => host.emit("room:setLocalSource", metadata, ack));
+    const results = [];
+    for (let i = 0; i < 6; i++)
+      results.push(
+        await request((ack) =>
+          host.emit(
+            "source:ready",
+            { fingerprint: i % 2 ? null : fingerprint },
+            ack,
+          ),
+        ),
+      );
+    expect(results.slice(0, 5).every((result) => result.ok)).toBe(true);
+    expect(results[5]?.ok).toBe(false);
+  });
+});

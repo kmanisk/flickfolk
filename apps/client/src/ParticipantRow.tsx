@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { Crown, Mic, MicOff, Shield } from "lucide-react";
+import { CheckCircle2, Crown, Mic, MicOff, Shield } from "lucide-react";
 import type { ReactNode } from "react";
 import { Avatar, Chip } from "./ui/index.js";
 import type { AudioLevels } from "./AudioLevels.js";
@@ -60,6 +60,11 @@ export const ParticipantRow = memo(function ParticipantRow({
           <Shield aria-hidden="true" />
           <span>MODERATOR</span>
         </Chip>
+      )}
+      {person.hasFile && (
+        <span className="local-file-ready" aria-label={`${person.name} has the local file`} title="Has local file">
+          <CheckCircle2 aria-hidden="true" />
+        </span>
       )}
       <span
         className="mic-state"

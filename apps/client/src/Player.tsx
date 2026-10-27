@@ -3,13 +3,14 @@ import { endedOverlayMode } from "./lib/playerUi.js";
 import { PlaybackEngine } from "./lib/playbackEngine.js";
 import {
   html5Adapter,
+  localFileAdapter,
   youtubeAdapter,
   type PlayerAdapter,
 } from "./lib/playerAdapter.js";
 import { clockSync, syncStore, subscribeResync } from "./lib/syncRuntime.js";
 import { ActiveSpeakers, type Speaker } from "./ActiveSpeakers.js";
 import type { AudioLevels } from "./AudioLevels.js";
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { ReactionOverlay } from "./ReactionOverlay.js";
 import { useDucking } from "./useDucking.js";
 import type { VisibleReaction } from "./useReactions.js";
@@ -87,6 +88,11 @@ export function Player({
   onStarted,
   onPermissionDenied,
   onRequest,
+  localFile = null,
+  localPanel = null,
+  onLocalReady,
+  onLocalError,
+  onLocalMediaInfo,
 }: {
   playback: Playback;
   host: boolean;
@@ -104,6 +110,11 @@ export function Player({
   onStarted: () => void;
   onPermissionDenied: () => void;
   onRequest: (intent: ControlIntent) => void;
+  localFile?: File | null;
+  localPanel?: ReactNode;
+  onLocalReady?: () => void;
+  onLocalError?: () => void;
+  onLocalMediaInfo?: (info: { width: number; height: number }) => void;
 }) {
   const shell = useRef<HTMLDivElement>(null);
   const [controlsVisible, setControlsVisible] = useState(true);
@@ -147,6 +158,7 @@ export function Player({
   latest.current = playback;
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [ready, setReady] = useState(false);
+  const [localUrl, setLocalUrl] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [blocked, setBlocked] = useState(false);
   const [muted, setMuted] = useState(false);
@@ -166,6 +178,21 @@ export function Player({
   );
   const volumeObserver = useRef(volume.observe);
   volumeObserver.current = volume.observe;
+  useEffect(() => {
+    if (media?.kind !== "local") {
+      setLocalUrl(null);
+      return;
+    }
+    setReady(false);
+    cleanupEngine.current?.();
+    if (!localFile) {
+      setLocalUrl(null);
+      return;
+    }
+    const url = URL.createObjectURL(localFile);
+    setLocalUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [media?.kind, media?.id, localFile]);
   useEffect(() => {
     setReady(false);
     setError("");
@@ -234,7 +261,7 @@ export function Player({
     };
   }, [media?.kind, media?.id]);
   useEffect(() => {
-    if (!media || ["youtube", "video", "audio"].includes(media.kind)) return;
+    if (!media || ["youtube", "video", "audio", "local"].includes(media.kind)) return;
     const abort = new AbortController();
     let dispose: (() => void) | undefined;
     void import("./providers/external.js")
@@ -313,7 +340,9 @@ export function Player({
   useEffect(() => {
     if (!ready || error) return;
     const adapter = video.current
-      ? html5Adapter(video.current)
+      ? media?.kind === "local"
+        ? localFileAdapter(video.current)
+        : html5Adapter(video.current)
       : yt.current
         ? youtubeAdapter(yt.current)
         : external.current;
@@ -358,7 +387,7 @@ export function Player({
     };
     cleanupEngine.current = cleanup;
     return cleanup;
-  }, [ready, error, media?.kind, media?.id]);
+  }, [ready, error, media?.kind, media?.id, localUrl]);
   useEffect(() => {
     engine.current?.setContext(host, connected);
   }, [host, connected]);
@@ -498,25 +527,43 @@ export function Player({
                 : "Your host is choosing a video."}
             </span>
           </div>
-        ) : media.kind === "video" || media.kind === "audio" ? (
+        ) : media.kind === "local" && !localUrl ? (
+          <>{localPanel}</>
+        ) : media.kind === "video" ||
+          media.kind === "audio" ||
+          (media.kind === "local" && localUrl) ? (
           <video
             ref={video}
-            src={media.url}
+            src={media.kind === "local" ? localUrl ?? undefined : media.url}
             muted={muted}
             playsInline
             preload="auto"
             className={media.kind === "audio" ? "audio-source" : undefined}
-            onLoadedMetadata={() => setReady(true)}
+            onLoadedMetadata={(event) => {
+              setReady(true);
+              if (media.kind === "local") {
+                onLocalMediaInfo?.({
+                  width: event.currentTarget.videoWidth,
+                  height: event.currentTarget.videoHeight,
+                });
+                onLocalReady?.();
+              }
+            }}
             onPlaying={() => {
               setEnded(false);
               started.current();
             }}
             onEnded={() => setEnded(true)}
-            onError={() =>
-              setError(
-                "Video could not load. Check the URL, codec and server access.",
-              )
-            }
+            onError={() => {
+              if (media.kind === "local") {
+                setReady(false);
+                setError("");
+                onLocalError?.();
+              } else
+                setError(
+                  "Video could not load. Check the URL, codec and server access.",
+                );
+            }}
           />
         ) : media.kind === "youtube" ? (
           <div className="youtube-mount" ref={mount} />
@@ -547,7 +594,7 @@ export function Player({
         )}
         <ActiveSpeakers people={speakers} levels={levels} />
         <ReactionOverlay items={reactions} onDone={onReactionEnd} />
-        {media && !ready && !error && (
+        {media && !(media.kind === "local" && !localUrl) && !ready && !error && (
           <div className="player-notice">Loading your video…</div>
         )}
         {error && (

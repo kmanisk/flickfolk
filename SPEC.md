@@ -20,6 +20,19 @@ Gate merge on full local suite and GitHub CI including Docker; update evaluator 
 push PR, merge normally, deploy the exact main SHA to existing Flickfolk on Render
 and verify the live multi-client flows. No new cloud services or data infrastructure.
 
+## Local file sync
+
+Local-file playback is an additive capability behind `FEATURES.localFile`. The selected
+video never uploads and filesystem paths never enter the protocol. The authoritative
+room stores only a sanitized name, size, duration and SHA-256 fingerprint. Each viewer
+selects their own copy after a reload. Fingerprints hash an 8-byte size prefix plus the
+first, middle and last 1 MiB (the whole file below 3 MiB) in a Web Worker. Exact
+fingerprints auto-match; different fingerprints within 2 seconds of the host duration
+require an explicit “Use anyway” confirmation. A local source reuses the native HTML5
+adapter and existing file correction policy; changing any source clears per-participant
+`hasFile` readiness. Unsupported codecs fail locally without affecting room/chat/voice.
+Room metadata remains in the existing in-memory room state only; no database is added.
+
 Project root: `/home/onyx/Projects/watchparty/`. All project files, dependencies, tests and generated output must remain inside this dedicated subfolder. Each new project must use its own named subfolder of `/home/onyx/Projects/`, never the home or Projects parent directory.
 
 Original dark, responsive watch-party experience inspired by watchparty.me.

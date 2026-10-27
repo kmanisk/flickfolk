@@ -1,6 +1,6 @@
 import type { Action, Media } from "./index.js";
 export type Provider =
-  "file" | "youtube" | "twitch" | "soundcloud" | "spotify" | "kick";
+  "file" | "local" | "youtube" | "twitch" | "soundcloud" | "spotify" | "kick";
 export interface PlayerCapabilities {
   provider: Provider;
   canPlay: boolean;
@@ -31,7 +31,7 @@ export function mediaCapabilities(media: Media): PlayerCapabilities {
     canReadDuration: timeline,
     isLive,
     canSetVolume: !["spotify", "kick"].includes(provider),
-    canSetRate: provider === "file",
+    canSetRate: provider === "file" || provider === "local",
     syncMode: embedOnly
       ? "embed"
       : isLive
@@ -57,6 +57,7 @@ export const PROVIDER_NAMES: Record<Media["kind"], string> = {
   soundcloud: "SoundCloud",
   spotify: "Spotify",
   kick: "Kick",
+  local: "Local file",
 };
 const unsupported = () => new Error("This source isn't supported yet.");
 export function parseMedia(value: unknown): Media {

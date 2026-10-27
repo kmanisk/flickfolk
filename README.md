@@ -175,6 +175,21 @@ Telemetry is an external store publishing at most 4Hz; playback labels use DOM r
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for the engine boundaries.
 
+## Local file sync
+
+A Host or Moderator can choose **Local file** from the source popover. Flickfolk never
+uploads the video: the browser plays a local `File` through an object URL, while the
+server receives only a sanitized filename, size, duration and SHA-256 fingerprint. Each
+participant selects their own copy. Exact fingerprints load automatically; another encode
+within two seconds of the host duration can be accepted explicitly with **Use anyway**.
+A refresh loses the browser File handle by design, so that viewer selects the file again.
+
+Browser codec support still applies. WebM is the most reliable cross-browser test format;
+MP4/H.264 works where the browser provides that codec, while containers such as MKV may
+not decode. Local playback keeps the file's own resolution and uses the same native HTML5
+sync/correction engine as direct video URLs. File bytes and filesystem paths never cross
+the network.
+
 ## Media providers
 
 Paste a URL; the source popover detects its provider. There is no media proxy or download service.
@@ -284,7 +299,7 @@ WebRTC to verify RMS, normalization-path setup, ducking, mute/zero and cleanup.
 Provider browser tests mock official SDK boundaries while using the real room/socket/engine path.
 Synthetic tests do not certify live provider availability, accounts, physical microphones or relay infrastructure.
 GitHub Actions runs lint, typecheck, tests, build, Playwright and Docker verification on pushes and pull requests.
-The assignment-final local suite has 203 unit/integration tests and 37 browser tests.
+The current local suite has 214 unit/integration tests and 39 browser tests.
 CI is the release gate, including the non-root Docker health smoke test.
 
 ## Deployment and scaling

@@ -10,3 +10,7 @@ ffmpeg -f lavfi -i 'sine=frequency=220:sample_rate=48000' -t 4 -c:a libopus audi
 Provider tests mock official SDK boundaries. The real engine, room state, typed
 Socket.IO commands, permissions, correction policy and UI remain active.
 These fixtures do not certify provider availability, account access or ad behavior.
+
+`local-sync.webm` is a tiny 3-second 320×180 VP8 fixture for local-file E2E.
+`local-mismatch.webm` is a 6-second VP8 fixture used only to exercise deterministic mismatch handling.
+Both are committed so CI does not require ffmpeg or H.264 support.
