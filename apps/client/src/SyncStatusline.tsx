@@ -13,6 +13,7 @@ export function SyncStatusline({
   host,
   debug,
   onSource,
+  canEditSource = true,
   sourceOpen,
   sourceTriggerRef,
   sourceEditor,
@@ -25,6 +26,7 @@ export function SyncStatusline({
   host: boolean;
   debug: boolean;
   onSource?: () => void;
+  canEditSource?: boolean;
   sourceOpen?: boolean;
   sourceTriggerRef?: RefObject<HTMLButtonElement | null>;
   sourceEditor?: ReactNode;
@@ -59,7 +61,9 @@ export function SyncStatusline({
             variant="ghost"
             className="source-chip"
             ref={sourceTriggerRef}
-            aria-label="Change video source"
+            aria-label={
+              canEditSource ? "Change video source" : "Request video source"
+            }
             aria-expanded={sourceOpen}
             onClick={onSource}
           >

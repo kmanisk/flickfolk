@@ -138,6 +138,10 @@ test("two browsers synchronize real video, chat, reconnect and host promotion", 
           .evaluate((v) => (v as HTMLVideoElement).currentTime),
       )
       .toBeGreaterThan(0.2);
+    await host.getByRole("button", { name: "Pause", exact: true }).click();
+    await expect(
+      host.getByRole("button", { name: "Play", exact: true }),
+    ).toBeVisible();
     await host.getByLabel("Seek video").focus();
     await host.getByLabel("Seek video").press("End");
     await host.getByLabel("Seek video").press("ArrowLeft");
@@ -147,11 +151,7 @@ test("two browsers synchronize real video, chat, reconnect and host promotion", 
           .locator("video")
           .evaluate((v) => (v as HTMLVideoElement).currentTime),
       )
-      .toBeGreaterThan(50);
-    await host.getByRole("button", { name: "Pause", exact: true }).click();
-    await expect(
-      host.getByRole("button", { name: "Play", exact: true }),
-    ).toBeVisible();
+      .toBeCloseTo(59.9, 1);
     await expect(guest.getByText(/^state v/)).toHaveText(
       (await host.getByText(/^state v/).textContent())!,
     );

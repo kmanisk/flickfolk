@@ -1,5 +1,6 @@
 import { memo } from "react";
-import { Crown, Mic, MicOff } from "lucide-react";
+import { Crown, Mic, MicOff, Shield } from "lucide-react";
+import type { ReactNode } from "react";
 import { Avatar, Chip } from "./ui/index.js";
 import type { AudioLevels } from "./AudioLevels.js";
 import type { Participant, VoiceState } from "@watchparty/shared";
@@ -11,6 +12,7 @@ export const ParticipantRow = memo(function ParticipantRow({
   speaking,
   levels,
   connected = true,
+  management,
 }: {
   person: Participant;
   self: boolean;
@@ -19,6 +21,7 @@ export const ParticipantRow = memo(function ParticipantRow({
   speaking: boolean;
   levels: AudioLevels;
   connected?: boolean;
+  management?: ReactNode;
 }) {
   const mic = !voice.joined ? "off" : voice.muted ? "muted" : "live";
   return (
@@ -37,13 +40,25 @@ export const ParticipantRow = memo(function ParticipantRow({
           {self && <small> (you)</small>}
         </strong>
         <span className="participant-presence">
-          {speaking ? "Speaking" : voice.joined ? "In voice" : "In the room"}
+          {speaking
+            ? "Speaking"
+            : voice.joined
+              ? "In voice"
+              : person.role === "participant"
+                ? "Participant"
+                : "In the room"}
         </span>
       </div>
       {host && (
         <Chip className="host-badge">
           <Crown aria-hidden="true" />
           HOST
+        </Chip>
+      )}
+      {!host && person.role === "moderator" && (
+        <Chip className="moderator-badge">
+          <Shield aria-hidden="true" />
+          <span>MODERATOR</span>
         </Chip>
       )}
       <span
@@ -56,6 +71,7 @@ export const ParticipantRow = memo(function ParticipantRow({
           <MicOff aria-hidden="true" />
         )}
       </span>
+      {management}
     </div>
   );
 });

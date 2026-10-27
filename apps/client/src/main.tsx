@@ -16,11 +16,12 @@ import {
 } from "@watchparty/shared";
 import { startClock } from "./lib/syncRuntime.js";
 import { Home } from "./Home.js";
-import { Toast } from "./ui/index.js";
+import { Button, Toast } from "./ui/index.js";
 import { useRoomLookup } from "./useRoomLookup.js";
 import { loadAccent } from "./accent.js";
 import "./style.css";
 import "./polish4.css";
+import "./assignment.css";
 loadAccent();
 const RoomView = lazy(() => import("./RoomView.js"));
 const socket: Socket<ServerEvents, ClientEvents> = io({
@@ -49,6 +50,19 @@ function storedClientId() {
 const clientId = storedClientId();
 function App() {
   const [effects, setEffects] = useState(true);
+  const [removed, setRemoved] = useState<string | null>(() => {
+    const code = normalizeCode(location.href);
+    try {
+      return CODE.test(code) &&
+        sessionStorage.getItem(`flickfolk:removed:${code}`)
+        ? code
+        : null;
+    } catch {
+      return null;
+    }
+  });
+  const removedRef = useRef(removed);
+  removedRef.current = removed;
   const [notFound, setNotFound] = useState(
     () =>
       location.pathname !== "/" &&
@@ -70,6 +84,7 @@ function App() {
   const connected = status === "Connected";
   const debug = new URLSearchParams(location.search).get("debug") === "1";
   function accept(next: Room) {
+    if (removedRef.current === next.code) return;
     const current = roomRef.current;
     if (
       current?.code === next.code &&
@@ -86,7 +101,7 @@ function App() {
     const stopClock = startClock(socket);
     function connect() {
       const previous = roomRef.current;
-      if (previous) {
+      if (previous && removedRef.current !== previous.code) {
         setStatus("Rejoining");
         socket
           .timeout(5000)
@@ -117,6 +132,21 @@ function App() {
     });
     socket.on("connect_error", () => setStatus("Reconnecting"));
     socket.on("room:state", accept);
+    socket.on("participant:removed", ({ userId }) => {
+      if (userId !== socket.id) return;
+      const code = roomRef.current?.code;
+      if (!code) return;
+      try {
+        sessionStorage.setItem(`flickfolk:removed:${code}`, "1");
+      } catch {
+        /* Session storage may be unavailable. */
+      }
+      removedRef.current = code;
+      setRemoved(code);
+      roomRef.current = null;
+      setRoom(null);
+      setError("");
+    });
     socket.on("voice:presence", ({ id, state }) => {
       const current = roomRef.current;
       if (!current) return;
@@ -161,6 +191,17 @@ function App() {
       return;
     }
     if (!socket.connected || busy) return;
+    if (!create) {
+      try {
+        sessionStorage.removeItem(
+          `flickfolk:removed:${normalizeCode(joinCode)}`,
+        );
+      } catch {
+        /* Optional storage. */
+      }
+      removedRef.current = null;
+      setRemoved(null);
+    }
     setBusy(true);
     const response = (err: Error | null, result: Result<Room>) => {
       setBusy(false);
@@ -216,6 +257,15 @@ function App() {
     });
   }
   function leave() {
+    if (removedRef.current) {
+      try {
+        sessionStorage.removeItem(`flickfolk:removed:${removedRef.current}`);
+      } catch {
+        /* Optional storage. */
+      }
+      removedRef.current = null;
+      setRemoved(null);
+    }
     if (socket.connected) socket.emit("room:leave", ack);
     roomRef.current = null;
     setRoom(null);
@@ -256,7 +306,16 @@ function App() {
       <Suspense
         fallback={<div className="room-loading">Opening your room…</div>}
       >
-        {room ? (
+        {removed ? (
+          <main className="removed-page">
+            <div className="removed-panel">
+              <h1>You were removed from this room by the host.</h1>
+              <Button variant="primary" onClick={leave}>
+                Back home
+              </Button>
+            </div>
+          </main>
+        ) : room ? (
           <RoomView
             socket={socket}
             room={room}

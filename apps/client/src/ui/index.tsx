@@ -429,9 +429,11 @@ export function Popover({
 export function Toast({
   message,
   onDismiss,
+  neutral = false,
 }: {
   message: string;
   onDismiss: () => void;
+  neutral?: boolean;
 }) {
   const close = useRef(onDismiss);
   close.current = onDismiss;
@@ -441,7 +443,7 @@ export function Toast({
     return () => clearTimeout(timer);
   }, [message]);
   return message ? (
-    <div className="toast" role="alert">
+    <div className={`toast ${neutral ? "toast-neutral" : ""}`} role="alert">
       <span>{message}</span>
       <Button variant="ghost" onClick={onDismiss}>
         Dismiss

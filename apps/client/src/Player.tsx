@@ -39,6 +39,7 @@ export interface PlaybackMetrics {
 }
 import {
   type Action,
+  type ControlIntent,
   type Playback,
   type ReactionSymbol,
   REACTIONS,
@@ -84,6 +85,8 @@ export function Player({
   onReaction,
   effects,
   onStarted,
+  onPermissionDenied,
+  onRequest,
 }: {
   playback: Playback;
   host: boolean;
@@ -99,6 +102,8 @@ export function Player({
   onReaction: (symbol: ReactionSymbol) => void;
   effects: boolean;
   onStarted: () => void;
+  onPermissionDenied: () => void;
+  onRequest: (intent: ControlIntent) => void;
 }) {
   const shell = useRef<HTMLDivElement>(null);
   const [controlsVisible, setControlsVisible] = useState(true);
@@ -368,7 +373,12 @@ export function Player({
   function commitSeek() {
     if (!seeking.current) return;
     seeking.current = false;
-    issue("seek", Number(seekInput.current?.value ?? position.current));
+    const target = Number(seekInput.current?.value ?? position.current);
+    if (host) issue("seek", target);
+    else {
+      onRequest({ action: "seek", payload: { position: target } });
+      showTime(position.current, duration.current);
+    }
   }
   const commands = useRef({
     host,
@@ -377,6 +387,7 @@ export function Player({
     playback,
     position: position.current,
     control: issue,
+    onPermissionDenied,
   });
   commands.current = {
     host,
@@ -385,6 +396,7 @@ export function Player({
     playback,
     position: position.current,
     control: issue,
+    onPermissionDenied,
   };
   useEffect(() => {
     const changed = () =>
@@ -403,13 +415,11 @@ export function Player({
   useEffect(() => {
     const playbackCommand = (action: "toggle" | "back" | "forward") => {
       const value = commands.current;
-      if (
-        !value.host ||
-        !value.connected ||
-        !value.ready ||
-        !value.playback.media
-      )
+      if (!value.host) {
+        value.onPermissionDenied();
         return;
+      }
+      if (!value.connected || !value.ready || !value.playback.media) return;
       if (action === "toggle") {
         value.control(
           value.playback.playing ? "pause" : "play",
@@ -616,6 +626,11 @@ export function Player({
           <IconButton
             className="icon-button"
             aria-label={playback.playing ? "Pause" : "Play"}
+            title={
+              !host
+                ? "Only the host and moderators can control playback"
+                : undefined
+            }
             disabled={
               !host ||
               !connected ||
@@ -643,14 +658,17 @@ export function Player({
         {(!caps || caps.canSeek) && (
           <input
             className="media-seek"
-            aria-label="Seek video"
+            aria-label={host ? "Seek video" : "Request seek"}
+            title={
+              host ? undefined : "Request a seek from the host or moderators"
+            }
             type="range"
             min="0"
             ref={seekInput}
             max="1"
             step="0.1"
             defaultValue="0"
-            disabled={!host || !connected || !media || !ready || !!error}
+            disabled={!connected || !media || !ready || !!error}
             onPointerDown={(event) => {
               seeking.current = true;
               event.currentTarget.setPointerCapture(event.pointerId);
@@ -692,7 +710,9 @@ export function Player({
           <>
             <IconButton
               className="icon-button"
-              aria-label={muted || volume.baseVolume <= 0.001 ? "Unmute" : "Mute"}
+              aria-label={
+                muted || volume.baseVolume <= 0.001 ? "Unmute" : "Mute"
+              }
               onClick={toggleMute}
               disabled={!media || !ready}
             >
@@ -710,7 +730,11 @@ export function Player({
               max="1"
               step="0.01"
               value={volume.baseVolume}
-              style={{ "--volume": `${Math.round(volume.baseVolume * 100)}%` } as CSSProperties}
+              style={
+                {
+                  "--volume": `${Math.round(volume.baseVolume * 100)}%`,
+                } as CSSProperties
+              }
               onChange={(event) => volume.choose(Number(event.target.value))}
               disabled={!media || !ready}
             />
