@@ -113,7 +113,10 @@ test("Home has one header GitHub link, no footer, no auth, no effects; local ide
     await page.getByRole("button", { name: "Leave room" }).click();
     const github = page.getByRole("link", { name: "GitHub", exact: true });
     await expect(github).toHaveCount(1);
-    await expect(github).toHaveAttribute("href", "https://github.com/kmanisk/flickfolk");
+    await expect(github).toHaveAttribute(
+      "href",
+      "https://github.com/kmanisk/flickfolk",
+    );
     await expect(github).toHaveAttribute("target", "_blank");
     await expect(page.getByRole("contentinfo")).toHaveCount(0);
     await expect(
@@ -210,6 +213,7 @@ test("Twitch VOD uses official SDK, deployed parent, sync commands and late join
     await expect(
       guest.getByRole("button", { name: "Pause", exact: true }),
     ).toBeDisabled();
+    await expect(guest.locator(".external-mount iframe")).toBeVisible();
     await expect
       .poll(async () => (await values(guest)).position)
       .toBeGreaterThanOrEqual(10);
