@@ -28,6 +28,14 @@ async function pair(browser: Browser) {
   const host = await first.newPage(),
     guest = await second.newPage();
   const errors: string[] = [];
+  const guestTraffic = { controls: 0, requests: 0 };
+  guest.on("websocket", (ws) =>
+    ws.on("framesent", ({ payload }) => {
+      const packet = String(payload);
+      if (packet.includes("playback:control")) guestTraffic.controls++;
+      if (packet.includes("control:request")) guestTraffic.requests++;
+    }),
+  );
   for (const page of [host, guest])
     page.on("pageerror", (error) => errors.push(error.message));
   await host.goto("/");
@@ -48,6 +56,7 @@ async function pair(browser: Browser) {
     host,
     guest,
     errors,
+    guestTraffic,
     close: async () => {
       await first.close();
       await second.close();
@@ -66,14 +75,8 @@ async function enablePlayback(page: Page) {
 test("participant requests pause; host reviews, approves and denies without bypassing authority", async ({
   browser,
 }) => {
-  const { host, guest, errors, close } = await pair(browser);
+  const { host, guest, errors, close, guestTraffic } = await pair(browser);
   try {
-    let direct = 0;
-    guest.on("websocket", (ws) =>
-      ws.on("framesent", ({ payload }) => {
-        if (String(payload).includes("playback:control")) direct++;
-      }),
-    );
     await expect(
       guest.getByRole("button", { name: "Play", exact: true }),
     ).toBeDisabled();
@@ -117,7 +120,8 @@ test("participant requests pause; host reviews, approves and denies without bypa
       .click();
     await host.getByRole("button", { name: "Deny Sam's request" }).click();
     await expect(guest.getByRole("alert")).toContainText("Declined");
-    expect(direct).toBe(0);
+    expect(guestTraffic.controls).toBe(0);
+    expect(guestTraffic.requests).toBe(2);
     expect(errors).toEqual([]);
   } finally {
     await close();

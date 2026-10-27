@@ -175,6 +175,10 @@
   height: 1.1em;
   color: var(--accent);
 }
+/* Keep 24px clear even during the ticket's 8px entrance translation. */
+.home-note {
+  margin-top: 32px;
+}
 .kinetic-line .phrase {
   position: absolute;
   inset: 0;

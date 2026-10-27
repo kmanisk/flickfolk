@@ -440,6 +440,23 @@ test("three participants stay aligned through play, pause, seek and late join", 
       const enable = page.getByRole("button", {
         name: "Click to enable playback",
       });
+      // Loading and autoplay rejection are asynchronous; wait for either outcome.
+      await expect
+        .poll(
+          async () => {
+            if (await enable.isVisible()) return true;
+            return page.locator("video").evaluate((element) => {
+              const video = element as HTMLVideoElement;
+              return (
+                video.readyState >= 2 &&
+                !video.paused &&
+                video.currentTime > 0.5
+              );
+            });
+          },
+          { timeout: 15000 },
+        )
+        .toBe(true);
       if (await enable.isVisible()) await enable.click();
       await expect.poll(() => position(page)).toBeGreaterThan(0.5);
       await expect(
