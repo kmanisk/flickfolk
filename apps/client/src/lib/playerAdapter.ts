@@ -64,6 +64,14 @@ export function html5Adapter(video: HTMLVideoElement): PlayerAdapter {
     },
   };
 }
+
+export function localFileAdapter(video: HTMLVideoElement): PlayerAdapter {
+  return {
+    ...html5Adapter(video),
+    provider: "local",
+  };
+}
+
 // YouTube has discrete rates: correction never requests fractional nudges.
 export function youtubeAdapter(player: YT.Player): PlayerAdapter {
   return {

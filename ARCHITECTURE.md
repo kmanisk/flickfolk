@@ -50,3 +50,15 @@ Moderator. A bounded 30s role lease supports local client identity without accou
 Removal leaves the Socket.IO room and deletes session/queue membership, so controls
 and voice signals fail membership checks. The browser session removal marker stops
 automatic rejoin; it is not a permanent ban or an authentication mechanism.
+## Local playback plane
+
+`LocalFileAdapter -> browser-local File/ObjectURL -> existing HTML5 adapter -> playbackEngine`.
+Direct browser media uses the same HTML5 adapter. Extensionless/signed URLs are attempted
+directly by the browser; HLS (`.m3u8`) and MPEG-DASH (`.mpd`) attach lazy client-only
+adapters to the same `<video>` element. The Node server never proxies or downloads media.
+Only `{ fingerprint, name, size, durationSec }` crosses Socket.IO; file bytes and paths
+never do. Fingerprinting samples at most 3 MiB in a module Worker. The server keeps
+source metadata and per-socket `hasFile` readiness in the existing in-memory room.
+Exact/near/mismatch decisions are shared pure logic; near matches require explicit local
+confirmation. Reloading intentionally loses the File handle and shows the selection panel
+again while the room metadata remains available until the room itself disappears.

@@ -182,6 +182,40 @@ test("direct audio uses the authoritative player and Effects unlocks only after 
     await app.shutdown();
   }
 });
+
+
+test("extensionless signed video URLs use the native synchronized player", async ({
+  page,
+}) => {
+  const clip = readFileSync(new URL("./fixtures/clip.webm", import.meta.url));
+  await page.route("https://media.example/signed/playback?token=test", (route) =>
+    route.fulfill({
+      contentType: "video/webm",
+      body: clip,
+      headers: { "access-control-allow-origin": "*" },
+    }),
+  );
+  const { app } = await room(page);
+  try {
+    await load(page, "https://media.example/signed/playback?token=test");
+    await expect(page.locator("video")).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Play", exact: true }),
+    ).toBeEnabled();
+    await page.getByRole("button", { name: "Play", exact: true }).click();
+    await expect
+      .poll(() =>
+        page
+          .locator("video")
+          .evaluate((video) => (video as HTMLVideoElement).currentTime),
+      )
+      .toBeGreaterThan(0.15);
+  } finally {
+    await page.close();
+    await app.shutdown();
+  }
+});
+
 test("Twitch VOD uses official SDK, deployed parent, sync commands and late join", async ({
   page,
   browser,

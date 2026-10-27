@@ -3,7 +3,9 @@ import {
   currentPosition,
   mediaCapabilities,
   parseMedia,
+  cleanLocalSource,
   type ControlIntent,
+  type LocalSourceMetadata,
   type Room,
 } from "@watchparty/shared";
 
@@ -22,6 +24,7 @@ export function applyControl(
       updatedAt: now,
       revision: room.playback.revision + 1,
     };
+    for (const person of room.participants) person.hasFile = false;
     return;
   }
   room.playback = {
@@ -38,4 +41,25 @@ export function applyControl(
     updatedAt: now,
     revision: room.playback.revision + 1,
   };
+}
+
+export function applyLocalSource(
+  room: Room,
+  input: LocalSourceMetadata,
+  now = Date.now(),
+) {
+  const local = cleanLocalSource(input);
+  room.playback = {
+    media: {
+      kind: "local",
+      id: local.fingerprint,
+      url: "",
+      local,
+    },
+    position: 0,
+    playing: false,
+    updatedAt: now,
+    revision: room.playback.revision + 1,
+  };
+  for (const person of room.participants) person.hasFile = false;
 }

@@ -5,6 +5,8 @@ import { can, type Role } from "./permissions.js";
 import type { ControlIntent, ControlRequest } from "./requests.js";
 export * from "./permissions.js";
 export * from "./requests.js";
+export * from "./localMatch.js";
+export * from "./config.js";
 export * from "./collaboration.js";
 export * from "./audio.js";
 export * from "./reactions.js";
@@ -16,10 +18,19 @@ export interface Media {
     | "twitch"
     | "soundcloud"
     | "spotify"
-    | "kick";
+    | "kick"
+    | "local";
   live?: boolean;
   url: string;
   id: string;
+  local?: LocalSourceMetadata;
+  stream?: "hls" | "dash";
+}
+export interface LocalSourceMetadata {
+  fingerprint: string;
+  name: string;
+  size: number;
+  durationSec: number;
 }
 export interface Playback {
   media: Media | null;
@@ -33,6 +44,7 @@ export interface Participant {
   voice: VoiceState;
   id: string;
   name: string;
+  hasFile?: boolean;
 }
 export interface Message {
   senderId?: string;
@@ -64,6 +76,11 @@ export interface ClientEvents {
   ) => void;
   "room:leave": (ack: Ack) => void;
   "media:set": (payload: { url: string }, ack: Ack) => void;
+  "room:setLocalSource": (payload: LocalSourceMetadata, ack: Ack) => void;
+  "source:ready": (
+    payload: { fingerprint: string | null; acceptedNearMatch?: boolean },
+    ack: Ack,
+  ) => void;
   "role:assign": (
     payload: { userId: string; role: "moderator" | "participant" },
     ack: Ack,
@@ -153,6 +170,41 @@ export function cleanChat(value: unknown): string {
     throw new Error("Messages must be 1–500 printable characters.");
   return value.trim();
 }
+export function cleanLocalSource(value: unknown): LocalSourceMetadata {
+  if (!value || typeof value !== "object") throw new Error("Invalid local file.");
+  const input = value as Partial<LocalSourceMetadata>;
+  if (
+    typeof input.fingerprint !== "string" ||
+    !/^[a-f0-9]{64}$/.test(input.fingerprint)
+  )
+    throw new Error("Invalid local file fingerprint.");
+  if (typeof input.name !== "string") throw new Error("Invalid local file name.");
+  const name = input.name.replace(/[\\/]/g, "").trim();
+  // eslint-disable-next-line no-control-regex
+  if (!name || name.length > 120 || /[\u0000-\u001f\u007f]/.test(name))
+    throw new Error("Invalid local file name.");
+  if (
+    typeof input.size !== "number" ||
+    !Number.isInteger(input.size) ||
+    input.size < 1 ||
+    input.size > 1_000_000_000_000
+  )
+    throw new Error("Invalid local file size.");
+  if (
+    typeof input.durationSec !== "number" ||
+    !Number.isFinite(input.durationSec) ||
+    input.durationSec < 0.1 ||
+    input.durationSec > 86_400
+  )
+    throw new Error("Invalid local file duration.");
+  return {
+    fingerprint: input.fingerprint,
+    name,
+    size: input.size,
+    durationSec: input.durationSec,
+  };
+}
+
 export function currentPosition(playback: Playback, now: number): number {
   if (playback.media && !mediaCapabilities(playback.media).canReadPosition)
     return 0;

@@ -2,6 +2,7 @@ import {
   AudioLines,
   Disc3,
   Film,
+  HardDrive,
   Link2,
   Music2,
   Radio,
@@ -16,6 +17,7 @@ const icons = {
   soundcloud: AudioLines,
   spotify: Disc3,
   kick: Radio,
+  local: HardDrive,
 };
 export function ProviderBadge({ url }: { url: string }) {
   let media: Media | undefined;
@@ -28,7 +30,13 @@ export function ProviderBadge({ url }: { url: string }) {
   return (
     <span className="provider-badge">
       <Icon aria-hidden="true" />
-      {media ? PROVIDER_NAMES[media.kind] : "Paste a media link"}
+      {media
+        ? media.stream === "hls"
+          ? "HLS stream"
+          : media.stream === "dash"
+            ? "MPEG-DASH stream"
+            : PROVIDER_NAMES[media.kind]
+        : "Paste a media link"}
     </span>
   );
 }
